@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "sites": [
+    {
+      "name": "demo",
+      "domain": "demo.example.com",
+      "path": "/opt/projects/demo",
+      "http_port": 8081,
+      "socket_port": null,
+      "database": "db_demo",
+      "repo": "git@github.com:example/demo.git",
+      "branch": "main",
+      "status": "active"
+    }
+  ]
+}

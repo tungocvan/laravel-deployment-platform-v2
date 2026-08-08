@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+export PLATFORM_HOME="$(cd "$(dirname "$SCRIPT_PATH")/.." && pwd)"
+
+# Package-013 Interactive UI entry points.
+# Keep existing CLI routing untouched for every other command.
+case "${1:-}" in
+  "")
+    exec "$PLATFORM_HOME/modules/ui/commands/menu.sh"
+    ;;
+  menu|ui)
+    if [[ "${2:-}" == "--help" || "${2:-}" == "-h" ]]; then
+      exec "$PLATFORM_HOME/modules/ui/commands/menu.sh" --help
+    fi
+    exec "$PLATFORM_HOME/modules/ui/commands/menu.sh"
+    ;;
+esac
+
+source "$PLATFORM_HOME/core/bootstrap.sh"
+platform_dispatch "$@"

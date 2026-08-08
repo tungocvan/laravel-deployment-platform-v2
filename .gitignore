@@ -1,0 +1,30 @@
+# Secrets / environment
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Runtime / temporary
+*.log
+*.tmp
+*.pid
+/tmp/
+/cache/
+
+# Backups / archives
+*.tar
+*.tar.gz
+*.zip
+/backups/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Platform runtime state - review before committing
+/state/
+/runtime/
+*.bak

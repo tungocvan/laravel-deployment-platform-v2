@@ -1,0 +1,10 @@
+name: Bug
+description: Report a bug
+title: "[Bug]: "
+body:
+  - type: textarea
+    id: issue
+    attributes:
+      label: Description
+    validations:
+      required: true

@@ -1,0 +1,3 @@
+# Release Guide
+
+Semantic Versioning.

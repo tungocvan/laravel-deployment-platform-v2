@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LDP Package Manifest v2",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "name",
+    "version",
+    "type",
+    "platform",
+    "target",
+    "payload_root",
+    "install"
+  ]
+}
