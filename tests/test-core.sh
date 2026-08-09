@@ -32,26 +32,38 @@ assert_dispatch_error() {
 assert_common_error() {
   local expected_exit="$1"
   local expected_error_id="$2"
-  local expression="$3"
+  local scenario="$3"
 
   local output status
   set +e
-  output="$(PLATFORM_HOME="$PLATFORM_HOME" bash -c \
-    'source "$PLATFORM_HOME/core/lib/common.sh"; eval "$1"' \
-    _ "$expression" 2>&1)"
+  output="$(PLATFORM_HOME="$PLATFORM_HOME" bash -c '
+    source "$PLATFORM_HOME/core/lib/common.sh"
+    case "$1" in
+      missing-command)
+        require_command __platform_2_1_missing_binary__
+        ;;
+      root-required)
+        platform_current_uid() { printf "1000"; }
+        require_root
+        ;;
+      *)
+        exit 99
+        ;;
+    esac
+  ' _ "$scenario" 2>&1)"
   status=$?
   set -e
 
   if [[ "$status" -ne "$expected_exit" ]]; then
-    printf '[FAIL] expected exit %s, got %s for common expression: %s\n' \
-      "$expected_exit" "$status" "$expression" >&2
+    printf '[FAIL] expected exit %s, got %s for common scenario: %s\n' \
+      "$expected_exit" "$status" "$scenario" >&2
     printf '%s\n' "$output" >&2
     exit 1
   fi
 
   if [[ "$output" != *"[$expected_error_id]"* ]]; then
-    printf '[FAIL] missing error id %s for common expression: %s\n' \
-      "$expected_error_id" "$expression" >&2
+    printf '[FAIL] missing error id %s for common scenario: %s\n' \
+      "$expected_error_id" "$scenario" >&2
     printf '%s\n' "$output" >&2
     exit 1
   fi
@@ -67,10 +79,8 @@ assert_dispatch_error 2 CORE.MODULE_NOT_FOUND __platform_2_1_missing_module__
 assert_dispatch_error 2 CORE.COMMAND_NOT_FOUND site __platform_2_1_missing_command__
 
 # Shared dependency/precondition helpers expose stable identifiers and DEPENDENCY exit class.
-assert_common_error 4 CORE.REQUIRED_COMMAND_MISSING \
-  'require_command __platform_2_1_missing_binary__'
-assert_common_error 4 CORE.ROOT_REQUIRED \
-  'platform_current_uid() { printf "1000"; }; require_root'
+assert_common_error 4 CORE.REQUIRED_COMMAND_MISSING missing-command
+assert_common_error 4 CORE.ROOT_REQUIRED root-required
 
 # Success behavior for shared helpers remains unchanged.
 PLATFORM_HOME="$PLATFORM_HOME" bash -c \
