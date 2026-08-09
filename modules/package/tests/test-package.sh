@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-ROOT="${PLATFORM_HOME:-/opt/laravel-deployment-platform-v2}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+PLATFORM_HOME="$ROOT"
 source "$ROOT/core/bootstrap.sh"
 source "$ROOT/core/lib/package.sh"
 source "$ROOT/modules/package/lib/package.sh"
@@ -12,8 +13,7 @@ fail() {
 }
 
 TMP_ROOT="$(mktemp -d)"
-ORIGINAL_PLATFORM_HOME="$PLATFORM_HOME"
-trap 'PLATFORM_HOME="$ORIGINAL_PLATFORM_HOME"; rm -rf "$TMP_ROOT"' EXIT
+trap 'PLATFORM_HOME="$ROOT"; rm -rf "$TMP_ROOT"' EXIT
 
 PLATFORM_HOME="$TMP_ROOT/platform"
 mkdir -p "$PLATFORM_HOME/app" "$PLATFORM_HOME/state/packages/installed"
@@ -60,5 +60,5 @@ platform_tx_commit || fail "commit"
 [[ -d "$TX_ROOT" ]] || fail "commit unexpectedly executed rollback cleanup"
 rm -rf "$TX_ROOT"
 
-PLATFORM_HOME="$ORIGINAL_PLATFORM_HOME"
+PLATFORM_HOME="$ROOT"
 echo "[OK] package transaction tests"
