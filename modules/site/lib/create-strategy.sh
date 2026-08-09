@@ -31,8 +31,41 @@ site_create_repository_compose() {
   require_command docker
   (
     cd "$project_path"
-    docker compose --env-file .docker-platform.env -f "$compose_file" "$@"
+    docker compose --env-file .env --env-file .docker-platform.env -f "$compose_file" "$@"
   )
+}
+
+site_create_repository_prepare_env() {
+  local project_path="$1" name="$2" domain="$3" database="$4" http_port="$5" socket_port="$6"
+
+  if [[ ! -f "$project_path/.env" && -f "$project_path/.env.docker.example" ]]; then
+    cp "$project_path/.env.docker.example" "$project_path/.env"
+  fi
+
+  site_provision_configure_target \
+    "$project_path" "$name" "$domain" "$database" "$http_port" "$socket_port" 1
+
+  require_command openssl
+  local db_password root_password redis_password
+  db_password="$(openssl rand -hex 24)"
+  root_password="$(openssl rand -hex 24)"
+  redis_password="$(openssl rand -hex 24)"
+
+  site_provision_set_env_value "$project_path/.env" APP_ENV production
+  site_provision_set_env_value "$project_path/.env" APP_DEBUG false
+  site_provision_set_env_value "$project_path/.env" DB_HOST db
+  site_provision_set_env_value "$project_path/.env" DB_PORT 3306
+  site_provision_set_env_value "$project_path/.env" DB_USERNAME laravel
+  site_provision_set_env_value "$project_path/.env" DB_PASSWORD "$db_password"
+  site_provision_set_env_value "$project_path/.env" MARIADB_ROOT_PASSWORD "$root_password"
+  site_provision_set_env_value "$project_path/.env" CACHE_STORE redis
+  site_provision_set_env_value "$project_path/.env" SESSION_DRIVER redis
+  site_provision_set_env_value "$project_path/.env" QUEUE_CONNECTION redis
+  site_provision_set_env_value "$project_path/.env" REDIS_HOST redis
+  site_provision_set_env_value "$project_path/.env" REDIS_PASSWORD "$redis_password"
+  site_provision_set_env_value "$project_path/.env" REDIS_PORT 6379
+  site_provision_set_env_value "$project_path/.env" NODEJS_SERVER_URL http://socket:6001
+  site_provision_set_env_value "$project_path/.env" NODEJS_SERVER_PORT 6001
 }
 
 site_create_repository_validate_contract() {
@@ -48,33 +81,35 @@ site_create_repository_validate_contract() {
     grep -Fxq "$svc" <<<"$services" || die "Repository Compose thiếu service bắt buộc: $svc"
   done
 
-  # Repository strategy owns its Docker runtime. Ensure the app build references
-  # the requested Dockerfile instead of merely shipping an unused file.
   python3 - "$dockerfile" "$config" <<'PY' || die "Repository Compose service app không build từ Dockerfile đã chọn: $dockerfile"
 import re,sys
 wanted,text=sys.argv[1:]
 lines=text.splitlines()
 in_app=False
-app_indent=None
 in_build=False
-build_indent=None
-seen=False
+build_seen=False
+explicit=None
 for line in lines:
     if re.match(r'^  app:\s*$', line):
-        in_app=True; app_indent=2; continue
+        in_app=True
+        continue
     if in_app and line and not line.startswith('    '):
         break
     if not in_app:
         continue
     if re.match(r'^    build:\s*$', line):
-        in_build=True; build_indent=4; continue
+        in_build=True
+        build_seen=True
+        continue
     if in_build and line and not line.startswith('      '):
         in_build=False
     if in_build:
         m=re.match(r'^      dockerfile:\s*["\']?([^"\']+)["\']?\s*$', line)
-        if m and m.group(1)==wanted:
-            seen=True; break
-raise SystemExit(0 if seen else 1)
+        if m:
+            explicit=m.group(1)
+            break
+ok = build_seen and ((explicit == wanted) if explicit else wanted == 'Dockerfile')
+raise SystemExit(0 if ok else 1)
 PY
 }
 
@@ -94,11 +129,9 @@ site_create_repository_prepare() {
     sleep 2
   done
 
-  # Nginx on the host proxies to HTTP_PORT. Repository Compose must therefore
-  # publish web:80 on exactly that host port.
   local published
-  published="$(site_create_repository_compose "$project_path" "$compose_file" port web 80 2>/dev/null | tail -n1 || true)"
-  [[ -n "$published" ]] || die "Repository Compose phải publish service web port 80"
+  published="$(site_create_repository_compose "$project_path" "$compose_file" port web 8080 2>/dev/null | tail -n1 || true)"
+  [[ -n "$published" ]] || die "Repository Compose phải publish service web port 8080"
   [[ "${published##*:}" == "$http_port" ]] || die "Repository web port không khớp HTTP_PORT=$http_port: $published"
 }
 
@@ -209,14 +242,14 @@ site_create() {
   resolved_strategy="$(site_create_resolve_strategy "$docker_strategy" "$project_path" "$dockerfile" "$compose_file")"
   echo "[OK] Runtime strategy resolved: $resolved_strategy"
 
-  site_provision_configure_target "$project_path" "$name" "$domain" "$db_name" "$http_port" "$socket_port" 1
-
   if [[ "$resolved_strategy" == "repository" ]]; then
+    site_create_repository_prepare_env "$project_path" "$name" "$domain" "$db_name" "$http_port" "$socket_port"
     site_create_repository_validate_contract "$project_path" "$dockerfile" "$compose_file"
     site_create_repository_prepare "$project_path" "$compose_file" "$http_port" "$timeout"
     site_create_repository_finalize "$project_path" "$compose_file"
     site_create_repository_health "$project_path" "$compose_file"
   else
+    site_provision_configure_target "$project_path" "$name" "$domain" "$db_name" "$http_port" "$socket_port" 1
     site_provision_prepare_runtime "$name" "$project_path" 0 "$timeout"
     site_provision_finalize_runtime "$project_path"
   fi
