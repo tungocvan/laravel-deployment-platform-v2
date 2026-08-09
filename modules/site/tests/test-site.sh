@@ -60,11 +60,14 @@ grep -q 'Auto detect' "$MENU"
 grep -q 'ui_flow_create' "$MENU"
 grep -q "grep -vi '^::ffff:'" "$DOMAIN"
 
-# Update contract: no seed, fast-forward only, dirty tree guard and Inventory commit trace.
-if grep -q 'db:seed' "$UPDATE"; then
-  echo "[ERROR] Site update không được tự chạy db:seed."
+# Update contract: create-only seed policy must not be sourced by update command.
+# Update reuses the base create-strategy finalize, which contains migrate + optimize only.
+if grep -q 'create-seed-policy.sh' "$UPDATE_CMD"; then
+  echo "[ERROR] Site update không được source create seed policy."
   exit 1
 fi
+grep -q 'site_create_repository_finalize' "$UPDATE"
+grep -q 'deploy_run' "$UPDATE"
 grep -q 'status --porcelain' "$UPDATE"
 grep -q 'merge-base --is-ancestor' "$UPDATE"
 grep -q 'merge --ff-only' "$UPDATE"
@@ -185,4 +188,4 @@ set -e
   exit 1
 }
 
-echo "[OK] Site Provisioning + Create Strategy + Update + Domain Preflight + Seed + SSL Policy tests"
+echo "[OK] Site Provisioning + Create Strategy + Domain Preflight + Seed + SSL Policy + Update tests"
