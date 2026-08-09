@@ -10,7 +10,14 @@ COMMANDS
   show <name|domain|path>
   exec <site> <command...>
   doctor <site>
+  create --name=... --domain=... --repo=... [options]
+  update <site> [--dry-run] [--yes] [--timeout=N]
   duplicate --from=... --name=... --domain=... [options]
+
+UPDATE
+  Fast-forward site từ origin/<branch>, deploy lại runtime, migrate, optimize,
+  health check và cập nhật commit trong Inventory. Update không chạy db:seed.
+  Working tree có local changes hoặc Git history diverged sẽ bị từ chối.
 
 LIFECYCLE
   disable <site> [--yes]
@@ -37,6 +44,8 @@ PURGE OPTIONS
   --no-backup      # dangerous, requires --yes
 
 RECOMMENDED
+  site update <site> --dry-run
+  site update <site>
   site archive <site>
   site purge <site> --dry-run
   site purge <site>
