@@ -37,6 +37,7 @@ grep -q '4) Create site' "$MENU"
 grep -q 'Docker theo repository' "$MENU"
 grep -q 'Auto detect' "$MENU"
 grep -q 'ui_flow_create' "$MENU"
+grep -q "grep -vi '^::ffff:'" "$DOMAIN"
 
 grep -q 'site_provision_configure_target' "$SITE"
 grep -q 'site_provision_prepare_runtime' "$SITE"
@@ -65,6 +66,25 @@ if site_domain_all_in_set $'157.10.198.16\n1.2.3.4' $'10.0.0.1\n157.10.198.16'; 
   echo "[ERROR] DNS set mismatch phải fail."
   exit 1
 fi
+
+# IPv4-mapped IPv6 (::ffff:a.b.c.d) is not a real AAAA record for SSL routing.
+TEST_GETENT_DIR="$tmp/getent-bin"
+mkdir -p "$TEST_GETENT_DIR"
+cat > "$TEST_GETENT_DIR/getent" <<'EOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+  ahostsv6)
+    printf '%s\n' '::ffff:157.10.198.16 STREAM example.test' '::ffff:157.10.198.16 DGRAM example.test'
+    ;;
+  *) exit 2 ;;
+esac
+EOF
+chmod +x "$TEST_GETENT_DIR/getent"
+actual_dns6="$(PATH="$TEST_GETENT_DIR:$PATH" site_domain_dns_ipv6 example.test)"
+[[ -z "$actual_dns6" ]] || {
+  echo "[ERROR] IPv4-mapped IPv6 phải bị loại khỏi DNS IPv6 preflight: $actual_dns6"
+  exit 1
+}
 
 set +e
 PLATFORM_HOME="$ROOT" TEST_CREATE="$CREATE" TEST_COMMON="$COMMON" TEST_PATH="$tmp/platform" bash -c '
