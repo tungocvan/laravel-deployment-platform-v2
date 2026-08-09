@@ -82,6 +82,10 @@ platform_audit_try() {
     return 0
   fi
 
-  warn "Không thể ghi audit log; workflow result được giữ nguyên."
+  if declare -F warn >/dev/null 2>&1; then
+    warn "Không thể ghi audit log; workflow result được giữ nguyên."
+  else
+    echo "[WARN] Không thể ghi audit log; workflow result được giữ nguyên." >&2
+  fi
   return 0
 }
