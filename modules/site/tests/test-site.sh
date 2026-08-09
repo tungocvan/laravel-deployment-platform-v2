@@ -5,13 +5,14 @@ SITE="$ROOT/modules/site/lib/site.sh"
 PROV="$ROOT/modules/site/lib/provision.sh"
 CREATE="$ROOT/modules/site/lib/create-strategy.sh"
 DOMAIN="$ROOT/modules/site/lib/domain-preflight.sh"
+SSL_POLICY="$ROOT/modules/site/lib/create-ssl-policy.sh"
 DOMAIN_CMD="$ROOT/modules/site/commands/domain-preflight.sh"
 CREATE_CMD="$ROOT/modules/site/commands/create.sh"
 MENU="$ROOT/modules/ui/menus/sites.sh"
 INVENTORY="$ROOT/modules/inventory/lib/inventory.sh"
 COMMON="$ROOT/core/lib/common.sh"
 
-[[ -f "$PROV" && -f "$CREATE" && -f "$DOMAIN" && -f "$DOMAIN_CMD" && -f "$COMMON" ]]
+[[ -f "$PROV" && -f "$CREATE" && -f "$DOMAIN" && -f "$SSL_POLICY" && -f "$DOMAIN_CMD" && -f "$COMMON" ]]
 for fn in site_provision_configure_target site_provision_prepare_runtime site_provision_finalize_runtime site_provision_health site_provision_commit_inventory site_provision_cleanup_new_target; do
   grep -q "^${fn}()" "$PROV"
 done
@@ -21,8 +22,13 @@ done
 for fn in site_domain_ipv4_local site_domain_ipv6_local site_domain_dns_ipv4 site_domain_dns_ipv6 site_domain_all_in_set site_domain_preflight; do
   grep -q "^${fn}()" "$DOMAIN"
 done
+for fn in platform_ssl_issue site_create_record_ssl_status; do
+  grep -q "^${fn}()" "$SSL_POLICY"
+done
 
 grep -q 'domain-preflight.sh' "$CREATE_CMD"
+grep -q 'create-ssl-policy.sh' "$CREATE_CMD"
+grep -q 'site_create_record_ssl_status' "$CREATE_CMD"
 grep -q 'site_domain_preflight' "$DOMAIN_CMD"
 grep -q 'inventory_set_runtime_strategy' "$CREATE"
 grep -q '^inventory_set_runtime_strategy()' "$INVENTORY"
@@ -86,6 +92,21 @@ actual_dns6="$(PATH="$TEST_GETENT_DIR:$PATH" site_domain_dns_ipv6 example.test)"
   exit 1
 }
 
+# Create Site must keep the HTTP site when Certbot fails.
+TEST_SSL_POLICY="$SSL_POLICY" bash -c '
+  set -Eeuo pipefail
+  require_root(){ :; }
+  platform_ssl_require(){ :; }
+  platform_ssl_validate_domain(){ :; }
+  platform_nginx_conflict_files(){ :; }
+  certbot(){ return 1; }
+  platform_ssl_verify(){ return 1; }
+  warn(){ :; }
+  success(){ :; }
+  source "$TEST_SSL_POLICY"
+  platform_ssl_issue example.test
+'
+
 set +e
 PLATFORM_HOME="$ROOT" TEST_CREATE="$CREATE" TEST_COMMON="$COMMON" TEST_PATH="$tmp/platform" bash -c '
   set -Eeuo pipefail
@@ -100,4 +121,4 @@ set -e
   exit 1
 }
 
-echo "[OK] Site Provisioning + Create Strategy + Domain Preflight tests"
+echo "[OK] Site Provisioning + Create Strategy + Domain Preflight + SSL Policy tests"
