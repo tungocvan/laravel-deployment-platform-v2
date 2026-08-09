@@ -177,6 +177,31 @@ os.replace(tmp,path)
 PY
 }
 
+inventory_set_runtime_strategy() {
+  local key="$1" strategy="${2:-platform}" dockerfile="${3:-Dockerfile}" compose_file="${4:-compose.yaml}"
+  inventory_init
+  python3 - "$(inventory_file)" "$key" "$strategy" "$dockerfile" "$compose_file" <<'PY'
+import json,sys,os
+path,key,strategy,dockerfile,compose_file=sys.argv[1:]
+with open(path,encoding="utf-8") as f:d=json.load(f)
+site=None
+for item in d.get("sites",[]):
+    if key in (str(item.get("name","")),str(item.get("domain","")),str(item.get("path",""))):
+        site=item; break
+if site is None: raise SystemExit("site not found")
+site["runtime_strategy"]=strategy
+if strategy=="repository":
+    site["dockerfile"]=dockerfile
+    site["compose_file"]=compose_file
+else:
+    site.pop("dockerfile",None); site.pop("compose_file",None)
+tmp=path+".tmp"
+with open(tmp,"w",encoding="utf-8") as f:
+    json.dump(d,f,ensure_ascii=False,indent=2); f.write("\n")
+os.replace(tmp,path)
+PY
+}
+
 inventory_list() {
   inventory_init
   python3 - "$(inventory_file)" <<'PY'
@@ -254,46 +279,27 @@ file,name,app,domain,http,path,note=sys.argv[1:]
 http=int(http)
 with open(file,encoding="utf-8") as f:d=json.load(f)
 d.setdefault("sites",[]); d.setdefault("reserved_resources",[])
-
-# Không cho reserve port đang thuộc Laravel site khác.
 for s in d["sites"]:
     if s.get("name") != name and s.get("http_port") == http:
         raise SystemExit(f"HTTP port {http} đang thuộc Laravel site {s.get('name')}")
-
-# Remove same-name accidental site entry.
 d["sites"]=[s for s in d["sites"] if s.get("name") != name]
-
-# Upsert reserved resource by name.
 entry=None
 for r in d["reserved_resources"]:
     if r.get("name")==name:
         entry=r; break
 if entry is None:
     entry={}; d["reserved_resources"].append(entry)
-
-entry.update({
-    "name":name,
-    "type":"external",
-    "application":app or "external",
-    "http_port":http,
-    "managed":False,
-    "reserved_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
-})
+entry.update({"name":name,"type":"external","application":app or "external","http_port":http,"managed":False,"reserved_at":datetime.datetime.now(datetime.timezone.utc).isoformat()})
 if domain: entry["domain"]=domain
 if path: entry["path"]=path
 if note: entry["note"]=note
-
-# Duplicate reserved port check.
 owners=[r.get("name") for r in d["reserved_resources"] if r.get("http_port")==http]
-if len(owners)>1:
-    raise SystemExit(f"HTTP port {http} bị reserve trùng: {', '.join(owners)}")
-
+if len(owners)>1: raise SystemExit(f"HTTP port {http} bị reserve trùng: {', '.join(owners)}")
 tmp=file+".tmp"
 with open(tmp,"w",encoding="utf-8") as f:
     json.dump(d,f,ensure_ascii=False,indent=2);f.write("\n")
 os.replace(tmp,file)
 PY
-
   success "Đã reserve HTTP port $http_port cho $name"
 }
 
@@ -307,8 +313,7 @@ file,name=sys.argv[1:]
 with open(file,encoding="utf-8") as f:d=json.load(f)
 before=len(d.get("reserved_resources",[]))
 d["reserved_resources"]=[r for r in d.get("reserved_resources",[]) if r.get("name")!=name]
-if len(d["reserved_resources"])==before:
-    raise SystemExit("reserved resource not found")
+if len(d["reserved_resources"])==before: raise SystemExit("reserved resource not found")
 tmp=file+".tmp"
 with open(tmp,"w",encoding="utf-8") as f:
     json.dump(d,f,ensure_ascii=False,indent=2);f.write("\n")
@@ -320,7 +325,6 @@ PY
 inventory_port_used() {
   local port="$1"
   inventory_init
-
   python3 - "$(inventory_file)" "$port" <<'PY' && return 0 || true
 import json,sys
 with open(sys.argv[1],encoding="utf-8") as f:d=json.load(f)
@@ -331,7 +335,6 @@ for r in d.get("reserved_resources",[]):
     if r.get("http_port")==p or r.get("socket_port")==p: raise SystemExit(0)
 raise SystemExit(1)
 PY
-
   ss -lntH 2>/dev/null | awk '{print $4}' | grep -Eq "[:.]${port}$" && return 0
   docker ps --format '{{.Ports}}' 2>/dev/null | grep -Eq "(^|[^0-9])${port}->" && return 0
   return 1
@@ -340,8 +343,7 @@ PY
 inventory_find_free_port() {
   local port="$1"
   while inventory_port_used "$port"; do
-    port=$((port+1))
-    ((port<=65535)) || die "Không còn port hợp lệ"
+    port=$((port+1)); ((port<=65535)) || die "Không còn port hợp lệ"
   done
   echo "$port"
 }
@@ -355,36 +357,24 @@ try:
     with open(path,encoding="utf-8") as f:d=json.load(f)
 except Exception as e:
     print(f"[ERROR] JSON invalid: {e}"); raise SystemExit(1)
-
 errors=[]
-if not isinstance(d,dict):
-    errors.append("root phải là object")
+if not isinstance(d,dict): errors.append("root phải là object")
 else:
-    sites=d.get("sites")
-    reserved=d.get("reserved_resources")
+    sites=d.get("sites"); reserved=d.get("reserved_resources")
     if not isinstance(sites,list): errors.append("sites phải là array")
     if not isinstance(reserved,list): errors.append("reserved_resources phải là array")
-
     if isinstance(sites,list):
         required=("name","domain","path","http_port","database","repo","branch","status")
         for i,s in enumerate(sites):
-            if not isinstance(s,dict):
-                errors.append(f"sites[{i}] không phải object"); continue
+            if not isinstance(s,dict): errors.append(f"sites[{i}] không phải object"); continue
             for field in required:
-                if s.get(field) in (None,""):
-                    errors.append(f"{s.get('name',i)} thiếu {field}")
-            if s.get("path") and not os.path.isdir(s["path"]):
-                errors.append(f"{s.get('name',i)} path không tồn tại: {s['path']}")
-
+                if s.get(field) in (None,""): errors.append(f"{s.get('name',i)} thiếu {field}")
+            if s.get("path") and not os.path.isdir(s["path"]): errors.append(f"{s.get('name',i)} path không tồn tại: {s['path']}")
     if isinstance(reserved,list):
         for i,r in enumerate(reserved):
-            if not isinstance(r,dict):
-                errors.append(f"reserved_resources[{i}] không phải object"); continue
+            if not isinstance(r,dict): errors.append(f"reserved_resources[{i}] không phải object"); continue
             for field in ("name","http_port"):
-                if r.get(field) in (None,""):
-                    errors.append(f"reserved[{i}] thiếu {field}")
-
-    # duplicate names across both groups
+                if r.get(field) in (None,""): errors.append(f"reserved[{i}] thiếu {field}")
     names=collections.defaultdict(list)
     for s in sites if isinstance(sites,list) else []:
         if s.get("name"): names[s["name"]].append("site")
@@ -392,8 +382,6 @@ else:
         if r.get("name"): names[r["name"]].append("reserved")
     for n,kinds in names.items():
         if len(kinds)>1: errors.append(f"name trùng giữa inventory groups: {n}")
-
-    # all ports must be unique
     ports=collections.defaultdict(list)
     for s in sites if isinstance(sites,list) else []:
         for f in ("http_port","socket_port"):
@@ -403,7 +391,6 @@ else:
             if r.get(f) is not None: ports[str(r[f])].append(f"reserved:{r.get('name')}:{f}")
     for p,owners in ports.items():
         if len(owners)>1: errors.append(f"port {p} trùng: {', '.join(owners)}")
-
 if errors:
     for e in errors: print(f"[ERROR] {e}")
     raise SystemExit(1)
@@ -424,7 +411,6 @@ inventory_sync() {
     esac
   done
   [[ -n "$key" ]] || die "USAGE: platform inventory sync <site|path> [--path=...] [--name=...]"
-
   local project_dir="$explicit_path" name="$explicit_name"
   if inventory_find_json "$key" >/dev/null 2>&1; then
     [[ -n "$project_dir" ]] || project_dir="$(inventory_get_field "$key" path)"
@@ -432,18 +418,12 @@ inventory_sync() {
   elif [[ -d "$key" ]]; then
     [[ -n "$project_dir" ]] || project_dir="$key"
   fi
-
   [[ -n "$project_dir" ]] || die "Site chưa có trong inventory. Cần --path=/opt/project."
   [[ -n "$name" ]] || die "Site chưa có trong inventory. Cần --name=<name>."
-
   local runtime_json
   runtime_json="$(inventory_discover_runtime_json "$project_dir" "$name")"
   inventory_upsert_json "$key" "$runtime_json"
-
-  if ! inventory_validate; then
-    die "Sync đã ghi runtime metadata nhưng inventory chưa hợp lệ."
-  fi
-
+  if ! inventory_validate; then die "Sync đã ghi runtime metadata nhưng inventory chưa hợp lệ."; fi
   success "Đã sync inventory: $name"
   inventory_show "$name"
 }
