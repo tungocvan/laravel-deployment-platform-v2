@@ -33,8 +33,12 @@ platform_die() {
   exit "$exit_code"
 }
 
+platform_current_uid() {
+  printf '%s' "${EUID:-$(id -u)}"
+}
+
 require_root() {
-  [[ "${EUID:-$(id -u)}" -eq 0 ]] || platform_die \
+  [[ "$(platform_current_uid)" -eq 0 ]] || platform_die \
     "$PLATFORM_EXIT_DEPENDENCY" \
     "CORE.ROOT_REQUIRED" \
     "Command này cần sudo/root."
