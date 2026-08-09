@@ -76,3 +76,12 @@ finally:
 os.chmod(path, 0o600)
 PY
 }
+
+platform_audit_try() {
+  if platform_audit_write "$@"; then
+    return 0
+  fi
+
+  warn "Không thể ghi audit log; workflow result được giữ nguyên."
+  return 0
+}
