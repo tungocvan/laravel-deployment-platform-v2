@@ -6,13 +6,15 @@ PROV="$ROOT/modules/site/lib/provision.sh"
 CREATE="$ROOT/modules/site/lib/create-strategy.sh"
 DOMAIN="$ROOT/modules/site/lib/domain-preflight.sh"
 SSL_POLICY="$ROOT/modules/site/lib/create-ssl-policy.sh"
+SEED_POLICY="$ROOT/modules/site/lib/create-seed-policy.sh"
 DOMAIN_CMD="$ROOT/modules/site/commands/domain-preflight.sh"
 CREATE_CMD="$ROOT/modules/site/commands/create.sh"
 MENU="$ROOT/modules/ui/menus/sites.sh"
 INVENTORY="$ROOT/modules/inventory/lib/inventory.sh"
+DEPLOY="$ROOT/modules/deploy/lib/deploy.sh"
 COMMON="$ROOT/core/lib/common.sh"
 
-[[ -f "$PROV" && -f "$CREATE" && -f "$DOMAIN" && -f "$SSL_POLICY" && -f "$DOMAIN_CMD" && -f "$COMMON" ]]
+[[ -f "$PROV" && -f "$CREATE" && -f "$DOMAIN" && -f "$SSL_POLICY" && -f "$SEED_POLICY" && -f "$DOMAIN_CMD" && -f "$COMMON" ]]
 for fn in site_provision_configure_target site_provision_prepare_runtime site_provision_finalize_runtime site_provision_health site_provision_commit_inventory site_provision_cleanup_new_target; do
   grep -q "^${fn}()" "$PROV"
 done
@@ -25,8 +27,12 @@ done
 for fn in platform_ssl_issue site_create_record_ssl_status; do
   grep -q "^${fn}()" "$SSL_POLICY"
 done
+for fn in site_create_seed_repository site_create_seed_platform site_create_repository_finalize site_provision_finalize_runtime; do
+  grep -q "^${fn}()" "$SEED_POLICY"
+done
 
 grep -q 'domain-preflight.sh' "$CREATE_CMD"
+grep -q 'create-seed-policy.sh' "$CREATE_CMD"
 grep -q 'create-ssl-policy.sh' "$CREATE_CMD"
 grep -q 'site_create_record_ssl_status' "$CREATE_CMD"
 grep -q 'site_domain_preflight' "$DOMAIN_CMD"
@@ -44,6 +50,13 @@ grep -q 'Docker theo repository' "$MENU"
 grep -q 'Auto detect' "$MENU"
 grep -q 'ui_flow_create' "$MENU"
 grep -q "grep -vi '^::ffff:'" "$DOMAIN"
+grep -q 'php artisan db:seed --force' "$SEED_POLICY"
+
+# Normal deploy/update must never auto-seed.
+if grep -q 'php artisan db:seed' "$DEPLOY"; then
+  echo "[ERROR] Deploy thường không được tự động chạy db:seed."
+  exit 1
+fi
 
 grep -q 'site_provision_configure_target' "$SITE"
 grep -q 'site_provision_prepare_runtime' "$SITE"
@@ -92,6 +105,37 @@ actual_dns6="$(PATH="$TEST_GETENT_DIR:$PATH" site_domain_dns_ipv6 example.test)"
   exit 1
 }
 
+# Create Site must seed after migrate and before optimize for repository strategy.
+TEST_SEED_POLICY="$SEED_POLICY" bash -c '
+  set -Eeuo pipefail
+  calls=""
+  warn(){ :; }
+  site_create_repository_compose(){
+    case "$*" in
+      *"php artisan migrate --force"*) calls+="migrate\n" ;;
+      *"php artisan db:seed --force"*) calls+="seed\n" ;;
+      *"php artisan optimize:clear"*) calls+="optimize\n" ;;
+      *) : ;;
+    esac
+  }
+  source "$TEST_SEED_POLICY"
+  site_create_repository_finalize /tmp/site compose.yaml
+  [[ "$calls" == $'"'"'migrate\nseed\noptimize\n'"'"' ]]
+'
+
+# Create Site must seed after migrate and before optimize for platform strategy.
+TEST_SEED_POLICY="$SEED_POLICY" bash -c '
+  set -Eeuo pipefail
+  calls=""
+  deploy_migrate_path(){ calls+="migrate\n"; }
+  deploy_compose(){ calls+="seed\n"; }
+  deploy_optimize_path(){ calls+="optimize\n"; }
+  deploy_health_path(){ calls+="health\n"; }
+  source "$TEST_SEED_POLICY"
+  site_provision_finalize_runtime /tmp/site
+  [[ "$calls" == $'"'"'migrate\nseed\noptimize\nhealth\n'"'"' ]]
+'
+
 # Create Site must keep the HTTP site when Certbot fails.
 TEST_SSL_POLICY="$SSL_POLICY" bash -c '
   set -Eeuo pipefail
@@ -121,4 +165,4 @@ set -e
   exit 1
 }
 
-echo "[OK] Site Provisioning + Create Strategy + Domain Preflight + SSL Policy tests"
+echo "[OK] Site Provisioning + Create Strategy + Domain Preflight + Seed + SSL Policy tests"
