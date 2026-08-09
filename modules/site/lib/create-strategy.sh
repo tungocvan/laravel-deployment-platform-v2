@@ -159,6 +159,31 @@ site_create_repository_cleanup() {
   site_create_repository_compose "$project_path" "$compose_file" down -v --remove-orphans >/dev/null 2>&1 || true
 }
 
+site_create_domain_gate() {
+  local domain="$1" ssl="$2" replace_domain_config="$3" rc=0
+  site_domain_preflight "$domain" || rc=$?
+
+  case "$rc" in
+    0) return 0 ;;
+    10)
+      [[ "$replace_domain_config" -eq 1 ]] || die "Domain có Nginx managed config cũ. Dùng --replace-domain-config sau khi xác nhận."
+      warn "Sẽ làm mới Nginx managed config hiện có: $domain"
+      ;;
+    11)
+      [[ "$ssl" -eq 0 ]] || die "DNS chưa trỏ đúng VPS; không đủ điều kiện cấp SSL. Dùng --no-ssl hoặc cập nhật DNS."
+      warn "DNS chưa trỏ đúng VPS; tiếp tục create không SSL."
+      ;;
+    12)
+      [[ "$replace_domain_config" -eq 1 ]] || die "Domain có Nginx managed config cũ. Dùng --replace-domain-config sau khi xác nhận."
+      [[ "$ssl" -eq 0 ]] || die "DNS chưa trỏ đúng VPS; không đủ điều kiện cấp SSL."
+      warn "Sẽ làm mới Nginx config và tiếp tục không SSL."
+      ;;
+    21) die "Domain đang thuộc một managed site khác trong Inventory; archive/purge site cũ trước." ;;
+    22) die "Domain đang nằm trong Nginx config không do Platform quản lý; từ chối ghi đè." ;;
+    *) die "Domain preflight thất bại: $domain (exit=$rc)" ;;
+  esac
+}
+
 site_create() {
   require_root
   require_command git
@@ -167,7 +192,7 @@ site_create() {
   local name="" domain="" repo="" branch="main" project_path=""
   local http_port="auto" socket_port="auto" docker_strategy="platform"
   local dockerfile="Dockerfile" compose_file="compose.yaml" ssl=1 dry_run=0 auto_yes=0 timeout=120
-  local resolved_strategy="" db_name="" committed=0 nginx_created=0
+  local replace_domain_config=0 resolved_strategy="" db_name="" committed=0 nginx_created=0
 
   for arg in "$@"; do
     case "$arg" in
@@ -182,6 +207,7 @@ site_create() {
       --dockerfile=*) dockerfile="${arg#*=}" ;;
       --compose-file=*) compose_file="${arg#*=}" ;;
       --timeout=*) timeout="${arg#*=}" ;;
+      --replace-domain-config) replace_domain_config=1 ;;
       --no-ssl) ssl=0 ;;
       --dry-run) dry_run=1 ;;
       --yes) auto_yes=1 ;;
@@ -195,7 +221,8 @@ site_create() {
 
   platform_nginx_validate_domain "$domain"
   site_assert_name_available "$name"
-  site_assert_domain_available "$domain"
+  site_create_domain_gate "$domain" "$ssl" "$replace_domain_config"
+
   project_path="${project_path:-$(site_projects_root)/$(site_slugify "$name")}"
   [[ ! -e "$project_path" ]] || die "Path đã tồn tại: $project_path"
   http_port="$(site_choose_port "$http_port" 8081)"
@@ -214,6 +241,7 @@ site_create() {
   echo "Dockerfile  : $dockerfile"
   echo "Compose     : $compose_file"
   echo "SSL         : $ssl"
+  echo "Replace Nginx managed config: $replace_domain_config"
 
   if [[ "$dry_run" -eq 1 ]]; then
     if [[ "$docker_strategy" == "auto" ]]; then
