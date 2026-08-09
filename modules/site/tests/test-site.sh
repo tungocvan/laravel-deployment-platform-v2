@@ -4,21 +4,26 @@ ROOT="${PLATFORM_HOME:-/opt/laravel-deployment-platform-v2}"
 SITE="$ROOT/modules/site/lib/site.sh"
 PROV="$ROOT/modules/site/lib/provision.sh"
 CREATE="$ROOT/modules/site/lib/create-strategy.sh"
+UPDATE="$ROOT/modules/site/lib/update.sh"
 DOMAIN="$ROOT/modules/site/lib/domain-preflight.sh"
 SSL_POLICY="$ROOT/modules/site/lib/create-ssl-policy.sh"
 SEED_POLICY="$ROOT/modules/site/lib/create-seed-policy.sh"
 DOMAIN_CMD="$ROOT/modules/site/commands/domain-preflight.sh"
 CREATE_CMD="$ROOT/modules/site/commands/create.sh"
+UPDATE_CMD="$ROOT/modules/site/commands/update.sh"
 MENU="$ROOT/modules/ui/menus/sites.sh"
 INVENTORY="$ROOT/modules/inventory/lib/inventory.sh"
 COMMON="$ROOT/core/lib/common.sh"
 
-[[ -f "$PROV" && -f "$CREATE" && -f "$DOMAIN" && -f "$SSL_POLICY" && -f "$SEED_POLICY" && -f "$DOMAIN_CMD" && -f "$COMMON" ]]
+[[ -f "$PROV" && -f "$CREATE" && -f "$UPDATE" && -f "$DOMAIN" && -f "$SSL_POLICY" && -f "$SEED_POLICY" && -f "$DOMAIN_CMD" && -f "$UPDATE_CMD" && -f "$COMMON" ]]
 for fn in site_provision_configure_target site_provision_prepare_runtime site_provision_finalize_runtime site_provision_health site_provision_commit_inventory site_provision_cleanup_new_target; do
   grep -q "^${fn}()" "$PROV"
 done
 for fn in site_create_resolve_strategy site_create_validate_laravel site_create_repository_validate_contract site_create_repository_prepare site_create_repository_finalize site_create_repository_health site_create_repository_cleanup site_create_domain_gate site_create; do
   grep -q "^${fn}()" "$CREATE"
+done
+for fn in site_update_assert_clean site_update_record_commit site_update_deploy site_update; do
+  grep -q "^${fn}()" "$UPDATE"
 done
 for fn in site_domain_ipv4_local site_domain_ipv6_local site_domain_dns_ipv4 site_domain_dns_ipv6 site_domain_all_in_set site_domain_preflight; do
   grep -q "^${fn}()" "$DOMAIN"
@@ -35,6 +40,8 @@ grep -q 'create-ssl-policy.sh' "$CREATE_CMD"
 grep -q 'create-seed-policy.sh' "$CREATE_CMD"
 grep -q 'site_create_record_ssl_status' "$CREATE_CMD"
 grep -q 'site_domain_preflight' "$DOMAIN_CMD"
+grep -q 'site/lib/update.sh' "$UPDATE_CMD"
+grep -q 'site_update "\$@"' "$UPDATE_CMD"
 grep -q 'inventory_set_runtime_strategy' "$CREATE"
 grep -q '^inventory_set_runtime_strategy()' "$INVENTORY"
 grep -q 'Repository Compose service app không build từ Dockerfile' "$CREATE"
@@ -45,10 +52,25 @@ grep -q 'DOMAIN / SSL PREFLIGHT' "$MENU"
 grep -q 'Làm mới config' "$MENU"
 grep -q 'Tạo site KHÔNG SSL' "$MENU"
 grep -q '4) Create site' "$MENU"
+grep -q '5) Update site from GitHub' "$MENU"
+grep -q 'ui_flow_update' "$MENU"
+grep -q 'site update "\$site" --dry-run' "$MENU"
 grep -q 'Docker theo repository' "$MENU"
 grep -q 'Auto detect' "$MENU"
 grep -q 'ui_flow_create' "$MENU"
 grep -q "grep -vi '^::ffff:'" "$DOMAIN"
+
+# Update contract: no seed, fast-forward only, dirty tree guard and Inventory commit trace.
+if grep -q 'db:seed' "$UPDATE"; then
+  echo "[ERROR] Site update không được tự chạy db:seed."
+  exit 1
+fi
+grep -q 'status --porcelain' "$UPDATE"
+grep -q 'merge-base --is-ancestor' "$UPDATE"
+grep -q 'merge --ff-only' "$UPDATE"
+grep -q 'previous_commit' "$UPDATE"
+grep -q 'last_updated_at' "$UPDATE"
+grep -q 'Không tự git reset' "$UPDATE"
 
 # Normal deploy must remain seed-free.
 if grep -q 'db:seed' "$ROOT/modules/deploy/lib/deploy.sh"; then
@@ -163,4 +185,4 @@ set -e
   exit 1
 }
 
-echo "[OK] Site Provisioning + Create Strategy + Domain Preflight + Seed + SSL Policy tests"
+echo "[OK] Site Provisioning + Create Strategy + Update + Domain Preflight + Seed + SSL Policy tests"
