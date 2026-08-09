@@ -3,21 +3,21 @@
 site_domain_ipv4_local() {
   if [[ -n "${PLATFORM_PUBLIC_IP:-}" ]]; then printf '%s\n' "$PLATFORM_PUBLIC_IP"; fi
   command -v ip >/dev/null 2>&1 || return 0
-  ip -4 -o addr show scope global 2>/dev/null | awk '{split($4,a,"/"); print a[1]}' | sort -u
+  ip -4 -o addr show scope global 2>/dev/null | awk '{split($4,a,"/"); print a[1]}' | sort -u || true
 }
 
 site_domain_ipv6_local() {
   if [[ -n "${PLATFORM_PUBLIC_IPV6:-}" ]]; then printf '%s\n' "$PLATFORM_PUBLIC_IPV6"; fi
   command -v ip >/dev/null 2>&1 || return 0
-  ip -6 -o addr show scope global 2>/dev/null | awk '{split($4,a,"/"); print a[1]}' | sort -u
+  ip -6 -o addr show scope global 2>/dev/null | awk '{split($4,a,"/"); print a[1]}' | sort -u || true
 }
 
 site_domain_dns_ipv4() {
-  getent ahostsv4 "$1" 2>/dev/null | awk '{print $1}' | sort -u
+  getent ahostsv4 "$1" 2>/dev/null | awk '{print $1}' | sort -u || true
 }
 
 site_domain_dns_ipv6() {
-  getent ahostsv6 "$1" 2>/dev/null | awk '{print $1}' | grep ':' | sort -u
+  getent ahostsv6 "$1" 2>/dev/null | awk '{print $1}' | grep ':' | sort -u || true
 }
 
 site_domain_all_in_set() {
@@ -64,10 +64,10 @@ site_domain_preflight() {
   [[ "$foreign" -eq 0 ]] || return 22
 
   local dns4 dns6 local4 local6 dns_ok=1
-  dns4="$(site_domain_dns_ipv4 "$domain")"
-  dns6="$(site_domain_dns_ipv6 "$domain")"
-  local4="$(site_domain_ipv4_local)"
-  local6="$(site_domain_ipv6_local)"
+  dns4="$(site_domain_dns_ipv4 "$domain" || true)"
+  dns6="$(site_domain_dns_ipv6 "$domain" || true)"
+  local4="$(site_domain_ipv4_local || true)"
+  local6="$(site_domain_ipv6_local || true)"
 
   echo "DNS IPv4 : ${dns4//$'\n'/, }"
   [[ -n "$dns6" ]] && echo "DNS IPv6 : ${dns6//$'\n'/, }"
