@@ -1,11 +1,11 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: lint test test-core test-transaction test-package test-modules
+.PHONY: lint test test-core test-transaction test-package test-lifecycle test-modules
 
 lint:
 	bash tools/lint.sh
 
-test: test-core test-transaction test-package test-modules
+test: test-core test-transaction test-package test-lifecycle test-modules
 
 test-core:
 	bash tests/test-core.sh
@@ -15,6 +15,9 @@ test-transaction:
 
 test-package:
 	bash modules/package/tests/test-package.sh
+
+test-lifecycle:
+	bash modules/lifecycle/tests/test-lifecycle.sh
 
 test-modules:
 	bash tests/test-modules.sh
