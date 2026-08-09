@@ -9,7 +9,8 @@ module_exists() {
 }
 
 module_list() {
-  find "$PLATFORM_HOME/modules" -mindepth 1 -maxdepth 1 -type d     -printf '%f\n' | sort
+  find "$PLATFORM_HOME/modules" -mindepth 1 -maxdepth 1 -type d \
+    -printf '%f\n' | sort
 }
 
 module_dispatch() {
@@ -23,6 +24,12 @@ module_dispatch() {
     "CORE.MODULE_NOT_FOUND" \
     "Module không tồn tại: $module"
 
+  # Prevent path traversal and keep dispatch limited to command file names.
+  [[ "$command" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ || "$command" =~ ^(-h|--help)$ ]] || platform_die \
+    "$PLATFORM_EXIT_USAGE" \
+    "CORE.COMMAND_NOT_FOUND" \
+    "Command không tồn tại: platform $module $command"
+
   local handler
   handler="$(module_dir "$module")/commands/${command}.sh"
 
@@ -30,10 +37,12 @@ module_dispatch() {
     handler="$(module_dir "$module")/commands/help.sh"
   fi
 
-  [[ -x "$handler" ]] || platform_die \
+  [[ -f "$handler" ]] || platform_die \
     "$PLATFORM_EXIT_USAGE" \
     "CORE.COMMAND_NOT_FOUND" \
     "Command không tồn tại: platform $module $command"
 
-  exec "$handler" "$@"
+  # Execute through bash so a valid tracked command still works if its executable
+  # bit is lost by an archive, filesystem, or repository contents API.
+  exec bash "$handler" "$@"
 }
