@@ -2,6 +2,14 @@
 
 Laravel Deployment Platform v2 là nền tảng CLI dạng module để quản lý nhiều website Laravel chạy bằng Docker trên một hoặc nhiều VPS.
 
+## AI / Developer Handoff
+
+Nếu tiếp nhận dự án ở chat mới, tài khoản khác, Codex hoặc AI khác, hãy đọc trước:
+
+- [`docs/AI-HANDOFF.md`](docs/AI-HANDOFF.md) — bản đồ kiến trúc, module ownership, workflow, safety rules, runtime boundaries, technical debt và hướng Platform 2.1.
+
+Khi tài liệu tổng quát mâu thuẫn với source mới hơn, ưu tiên source/module implementation và specification liên quan theo thứ tự được mô tả trong AI Handoff.
+
 ## Mục tiêu
 
 ```bash
@@ -37,6 +45,8 @@ core/lib/*.sh
 - `doctor`
 - `plugin`
 
+> Lưu ý: danh sách trên là mô tả lịch sử rút gọn. Xem `docs/AI-HANDOFF.md` hoặc chạy `platform-v2 modules` để lấy module map đầy đủ từ source/runtime hiện tại.
+
 ## Nguyên tắc
 
 - Mỗi module tự chứa command, library, docs và tests.
@@ -48,4 +58,4 @@ core/lib/*.sh
 
 ## Trạng thái
 
-Đây là **Modular Starter Kit**, dùng để hợp nhất code production v1 theo từng module. Không thay trực tiếp bản đang chạy trước khi migration và test hoàn tất.
+Repository này chứa baseline modular Platform đang tiếp tục được hoàn thiện theo hướng Platform 2.1: stabilization, task-oriented UI, chuẩn hóa framework dùng chung, integration tests và production hardening.
