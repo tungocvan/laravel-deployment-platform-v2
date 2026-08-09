@@ -47,7 +47,7 @@ EOF
 }
 
 ui_flow_create() {
-  local strategy name domain repo branch ssl=1 choice
+  local strategy name domain repo branch ssl=1 choice replace_domain=0 domain_rc=0
   ui_section "CREATE SITE"
   cat <<'EOF'
   1) Docker Platform hiện tại
@@ -68,13 +68,53 @@ EOF
   [[ -n "$name" ]] || { echo "[ERROR] Tên site bắt buộc."; ui_pause; return; }
   domain="$(ui_prompt "Domain mới")"
   [[ -n "$domain" ]] || { echo "[ERROR] Domain bắt buộc."; ui_pause; return; }
+
+  ui_section "DOMAIN / SSL PREFLIGHT"
+  ui_run site domain-preflight "$domain" || domain_rc=$?
+  case "$domain_rc" in
+    0) ;;
+    10)
+      ui_yesno "Domain có Nginx config cũ do Platform quản lý. Làm mới config?" "N" \
+        || { echo "[INFO] Đã hủy Create."; ui_pause; return; }
+      replace_domain=1
+      ;;
+    11)
+      ui_yesno "DNS chưa trỏ đúng VPS. Tạo site KHÔNG SSL?" "N" \
+        || { echo "[INFO] Đã hủy Create."; ui_pause; return; }
+      ssl=0
+      ;;
+    12)
+      ui_yesno "Domain có Nginx config cũ do Platform quản lý. Làm mới config?" "N" \
+        || { echo "[INFO] Đã hủy Create."; ui_pause; return; }
+      replace_domain=1
+      ui_yesno "DNS chưa trỏ đúng VPS. Tạo site KHÔNG SSL?" "N" \
+        || { echo "[INFO] Đã hủy Create."; ui_pause; return; }
+      ssl=0
+      ;;
+    21|22)
+      echo "[ERROR] Domain conflict không thể tự động ghi đè."
+      ui_pause
+      return
+      ;;
+    *)
+      echo "[ERROR] Domain preflight thất bại (exit=$domain_rc)."
+      ui_pause
+      return
+      ;;
+  esac
+
   repo="$(ui_prompt "Git repository")"
   [[ -n "$repo" ]] || { echo "[ERROR] Repository bắt buộc."; ui_pause; return; }
   branch="$(ui_prompt "Git branch [main]")"; branch="${branch:-main}"
-  ui_yesno "SSL?" "Y" || ssl=0
+  if [[ "$ssl" -eq 1 ]]; then
+    ui_yesno "SSL?" "Y" || ssl=0
+  else
+    echo "[INFO] SSL đã tắt do DNS preflight."
+  fi
 
   local args=(site create "--name=$name" "--domain=$domain" "--repo=$repo" "--branch=$branch" "--docker=$strategy")
   [[ "$ssl" -eq 0 ]] && args+=(--no-ssl)
+  [[ "$replace_domain" -eq 1 ]] && args+=(--replace-domain-config)
 
   ui_section "PREVIEW / DRY-RUN"
   ui_run_sudo "${args[@]}" --dry-run || { ui_pause; return; }
