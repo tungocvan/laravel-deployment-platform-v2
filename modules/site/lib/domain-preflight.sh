@@ -17,7 +17,14 @@ site_domain_dns_ipv4() {
 }
 
 site_domain_dns_ipv6() {
-  getent ahostsv6 "$1" 2>/dev/null | awk '{print $1}' | grep ':' | sort -u || true
+  # glibc/getent may synthesize IPv4-mapped IPv6 addresses (::ffff:a.b.c.d)
+  # when a hostname only has an A record. They are not real AAAA records and
+  # must not make the SSL preflight fail as if the domain had native IPv6.
+  getent ahostsv6 "$1" 2>/dev/null |
+    awk '{print $1}' |
+    grep ':' |
+    grep -vi '^::ffff:' |
+    sort -u || true
 }
 
 site_domain_all_in_set() {
