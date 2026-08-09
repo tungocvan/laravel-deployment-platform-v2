@@ -10,17 +10,18 @@ ui_menu_sites() {
   2) Xem chi tiết site
   3) Site doctor
   4) Create site
-  5) Duplicate site
+  5) Update site from GitHub
+  6) Duplicate site
 
-  6) Enable
-  7) Disable
-  8) Maintenance ON
-  9) Maintenance OFF
+  7) Enable
+  8) Disable
+  9) Maintenance ON
+ 10) Maintenance OFF
 
- 10) Archive
- 11) Restore archived site
- 12) Danh sách archive
- 13) Purge
+ 11) Archive
+ 12) Restore archived site
+ 13) Danh sách archive
+ 14) Purge
 
   0) Back
 
@@ -32,15 +33,16 @@ EOF
       2) site="$(ui_select_site "Chọn site cần xem")" || continue; ui_run site show "$site"; ui_pause ;;
       3) site="$(ui_select_site "Chọn site cần kiểm tra")" || continue; ui_run site doctor "$site"; ui_pause ;;
       4) ui_flow_create ;;
-      5) ui_flow_duplicate ;;
-      6) site="$(ui_select_site "Chọn site cần ENABLE")" || continue; ui_confirm_execute "ENABLE SITE: $site" && ui_run_sudo site enable "$site" --yes; ui_pause ;;
-      7) site="$(ui_select_site "Chọn site cần DISABLE")" || continue; ui_confirm_execute "DISABLE SITE: $site" && ui_run_sudo site disable "$site" --yes; ui_pause ;;
-      8) site="$(ui_select_site "Chọn site")" || continue; ui_confirm_execute "MAINTENANCE ON: $site" && ui_run_sudo site maintenance on "$site"; ui_pause ;;
-      9) site="$(ui_select_site "Chọn site")" || continue; ui_confirm_execute "MAINTENANCE OFF: $site" && ui_run_sudo site maintenance off "$site"; ui_pause ;;
-      10) ui_flow_archive ;;
-      11) ui_flow_restore_archive ;;
-      12) ui_run site archives; ui_pause ;;
-      13) ui_flow_purge ;;
+      5) ui_flow_update ;;
+      6) ui_flow_duplicate ;;
+      7) site="$(ui_select_site "Chọn site cần ENABLE")" || continue; ui_confirm_execute "ENABLE SITE: $site" && ui_run_sudo site enable "$site" --yes; ui_pause ;;
+      8) site="$(ui_select_site "Chọn site cần DISABLE")" || continue; ui_confirm_execute "DISABLE SITE: $site" && ui_run_sudo site disable "$site" --yes; ui_pause ;;
+      9) site="$(ui_select_site "Chọn site")" || continue; ui_confirm_execute "MAINTENANCE ON: $site" && ui_run_sudo site maintenance on "$site"; ui_pause ;;
+      10) site="$(ui_select_site "Chọn site")" || continue; ui_confirm_execute "MAINTENANCE OFF: $site" && ui_run_sudo site maintenance off "$site"; ui_pause ;;
+      11) ui_flow_archive ;;
+      12) ui_flow_restore_archive ;;
+      13) ui_run site archives; ui_pause ;;
+      14) ui_flow_purge ;;
       0) return 0 ;;
     esac
   done
@@ -119,6 +121,15 @@ EOF
   ui_section "PREVIEW / DRY-RUN"
   ui_run_sudo "${args[@]}" --dry-run || { ui_pause; return; }
   ui_confirm_execute "CREATE: $name / $domain / $strategy" && ui_run_sudo "${args[@]}" --yes
+  ui_pause
+}
+
+ui_flow_update() {
+  local site
+  site="$(ui_select_site "Chọn site cần UPDATE từ GitHub")" || return 0
+  ui_section "UPDATE SITE / DRY-RUN"
+  ui_run_sudo site update "$site" --dry-run || { ui_pause; return; }
+  ui_confirm_execute "UPDATE FROM GITHUB: $site" && ui_run_sudo site update "$site" --yes
   ui_pause
 }
 
