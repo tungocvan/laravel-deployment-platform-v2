@@ -11,7 +11,6 @@ DOMAIN_CMD="$ROOT/modules/site/commands/domain-preflight.sh"
 CREATE_CMD="$ROOT/modules/site/commands/create.sh"
 MENU="$ROOT/modules/ui/menus/sites.sh"
 INVENTORY="$ROOT/modules/inventory/lib/inventory.sh"
-DEPLOY="$ROOT/modules/deploy/lib/deploy.sh"
 COMMON="$ROOT/core/lib/common.sh"
 
 [[ -f "$PROV" && -f "$CREATE" && -f "$DOMAIN" && -f "$SSL_POLICY" && -f "$SEED_POLICY" && -f "$DOMAIN_CMD" && -f "$COMMON" ]]
@@ -32,8 +31,8 @@ for fn in site_create_seed_repository site_create_seed_platform site_create_repo
 done
 
 grep -q 'domain-preflight.sh' "$CREATE_CMD"
-grep -q 'create-seed-policy.sh' "$CREATE_CMD"
 grep -q 'create-ssl-policy.sh' "$CREATE_CMD"
+grep -q 'create-seed-policy.sh' "$CREATE_CMD"
 grep -q 'site_create_record_ssl_status' "$CREATE_CMD"
 grep -q 'site_domain_preflight' "$DOMAIN_CMD"
 grep -q 'inventory_set_runtime_strategy' "$CREATE"
@@ -50,11 +49,10 @@ grep -q 'Docker theo repository' "$MENU"
 grep -q 'Auto detect' "$MENU"
 grep -q 'ui_flow_create' "$MENU"
 grep -q "grep -vi '^::ffff:'" "$DOMAIN"
-grep -q 'php artisan db:seed --force' "$SEED_POLICY"
 
-# Normal deploy/update must never auto-seed.
-if grep -q 'php artisan db:seed' "$DEPLOY"; then
-  echo "[ERROR] Deploy thường không được tự động chạy db:seed."
+# Normal deploy must remain seed-free.
+if grep -q 'db:seed' "$ROOT/modules/deploy/lib/deploy.sh"; then
+  echo "[ERROR] Deploy thường không được tự chạy db:seed."
   exit 1
 fi
 
@@ -112,9 +110,9 @@ TEST_SEED_POLICY="$SEED_POLICY" bash -c '
   warn(){ :; }
   site_create_repository_compose(){
     case "$*" in
-      *"php artisan migrate --force"*) calls+="migrate\n" ;;
-      *"php artisan db:seed --force"*) calls+="seed\n" ;;
-      *"php artisan optimize:clear"*) calls+="optimize\n" ;;
+      *"php artisan migrate --force"*) calls+=$'"'"'migrate\n'"'"' ;;
+      *"php artisan db:seed --force"*) calls+=$'"'"'seed\n'"'"' ;;
+      *"php artisan optimize:clear"*) calls+=$'"'"'optimize\n'"'"' ;;
       *) : ;;
     esac
   }
@@ -127,10 +125,10 @@ TEST_SEED_POLICY="$SEED_POLICY" bash -c '
 TEST_SEED_POLICY="$SEED_POLICY" bash -c '
   set -Eeuo pipefail
   calls=""
-  deploy_migrate_path(){ calls+="migrate\n"; }
-  deploy_compose(){ calls+="seed\n"; }
-  deploy_optimize_path(){ calls+="optimize\n"; }
-  deploy_health_path(){ calls+="health\n"; }
+  deploy_migrate_path(){ calls+=$'"'"'migrate\n'"'"'; }
+  deploy_compose(){ calls+=$'"'"'seed\n'"'"'; }
+  deploy_optimize_path(){ calls+=$'"'"'optimize\n'"'"'; }
+  deploy_health_path(){ calls+=$'"'"'health\n'"'"'; }
   source "$TEST_SEED_POLICY"
   site_provision_finalize_runtime /tmp/site
   [[ "$calls" == $'"'"'migrate\nseed\noptimize\nhealth\n'"'"' ]]
