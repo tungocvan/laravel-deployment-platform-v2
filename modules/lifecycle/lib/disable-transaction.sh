@@ -73,7 +73,9 @@ site_disable() {
   fi
 
   echo "[04/05] Record lifecycle"
-  if ! site_lifecycle_write_state "$site" "disabled" "user-request"; then
+  if site_lifecycle_write_state "$site" "disabled" "user-request"; then
+    :
+  else
     rc=$?
     site_disable_tx_rollback || true
     return "$rc"
