@@ -7,8 +7,9 @@ CREATE="$ROOT/modules/site/lib/create-strategy.sh"
 CREATE_CMD="$ROOT/modules/site/commands/create.sh"
 MENU="$ROOT/modules/ui/menus/sites.sh"
 INVENTORY="$ROOT/modules/inventory/lib/inventory.sh"
+COMMON="$ROOT/core/lib/common.sh"
 
-[[ -f "$PROV" && -f "$CREATE" ]]
+[[ -f "$PROV" && -f "$CREATE" && -f "$COMMON" ]]
 for fn in site_provision_configure_target site_provision_prepare_runtime site_provision_finalize_runtime site_provision_health site_provision_commit_inventory site_provision_cleanup_new_target; do
   grep -q "^${fn}()" "$PROV"
 done
@@ -41,15 +42,25 @@ trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/platform" "$tmp/repository"
 touch "$tmp/repository/Dockerfile" "$tmp/repository/compose.yaml"
 
-die() { echo "[ERROR] $*" >&2; return 1; }
+source "$COMMON"
 source "$CREATE"
 [[ "$(site_create_resolve_strategy platform "$tmp/platform" Dockerfile compose.yaml)" == "platform" ]]
 [[ "$(site_create_resolve_strategy auto "$tmp/platform" Dockerfile compose.yaml)" == "platform" ]]
 [[ "$(site_create_resolve_strategy auto "$tmp/repository" Dockerfile compose.yaml)" == "repository" ]]
 [[ "$(site_create_resolve_strategy repository "$tmp/repository" Dockerfile compose.yaml)" == "repository" ]]
-if site_create_resolve_strategy repository "$tmp/platform" Dockerfile compose.yaml >/dev/null 2>&1; then
+
+set +e
+PLATFORM_HOME="$ROOT" TEST_CREATE="$CREATE" TEST_COMMON="$COMMON" TEST_PATH="$tmp/platform" bash -c '
+  set -Eeuo pipefail
+  source "$TEST_COMMON"
+  source "$TEST_CREATE"
+  site_create_resolve_strategy repository "$TEST_PATH" Dockerfile compose.yaml >/dev/null
+'
+missing_contract_rc=$?
+set -e
+[[ "$missing_contract_rc" -ne 0 ]] || {
   echo "[ERROR] repository strategy phải fail khi thiếu Docker contract."
   exit 1
-fi
+}
 
 echo "[OK] Site Provisioning + Create Strategy tests"
