@@ -89,7 +89,6 @@ PY
   mkdir -p "$tx_backup"
   cp -a "$record" "$tx_old_record"
 
-  # Backup every payload target file before candidate installer touches it.
   local payload_root
   payload_root="$(package_manifest_field "$root/manifest.json" payload_root)"
   [[ -d "$root/$payload_root" ]] || die "Payload root không tồn tại."
@@ -104,9 +103,12 @@ PY
     fi
   done < <(find "$root/$payload_root" -type f -print0)
 
-  # Candidate installer may create a temporary/new package record.
-  # We remove it before running, but keep the authoritative old record in tx_old_record.
   cp -a "$record" "$tx_root/pre-install-record.json"
+
+  platform_tx_begin "package-upgrade:$id" || die "Không thể bắt đầu package transaction."
+  platform_tx_register package_tx_cleanup_root "$tx_root" || die "Không thể đăng ký transaction cleanup."
+  platform_tx_register package_tx_restore_record "$tx_old_record" "$record" || die "Không thể đăng ký package record rollback."
+  platform_tx_register package_tx_restore_files "$root/$payload_root" "$tx_backup" || die "Không thể đăng ký payload rollback."
 
   set +e
   PACKAGE_UPGRADE=1 \
@@ -119,14 +121,13 @@ PY
 
   if [[ "$install_rc" -ne 0 ]]; then
     warn "Candidate installer thất bại. Đang rollback transaction..."
-    package_tx_restore_files "$root/$payload_root" "$tx_backup"
-    cp -a "$tx_old_record" "$record"
+    if ! platform_tx_rollback; then
+      warn "Package rollback không hoàn tất: $(platform_tx_rollback_failures) callback thất bại."
+    fi
     package_tx_history "$tx_history" "$id" "$old_version" "$new_version" "failed-install"
-    rm -rf "$tx_root"
     die "Upgrade thất bại; đã rollback về $old_version."
   fi
 
-  # Verify candidate explicitly after install.
   set +e
   "$root/verify.sh" --target="$PLATFORM_HOME"
   local verify_rc=$?
@@ -134,17 +135,16 @@ PY
 
   if [[ "$verify_rc" -ne 0 ]]; then
     warn "Candidate verify thất bại. Đang rollback transaction..."
-    package_tx_restore_files "$root/$payload_root" "$tx_backup"
-    cp -a "$tx_old_record" "$record"
+    if ! platform_tx_rollback; then
+      warn "Package rollback không hoàn tất: $(platform_tx_rollback_failures) callback thất bại."
+    fi
     package_tx_history "$tx_history" "$id" "$old_version" "$new_version" "failed-verify"
-    rm -rf "$tx_root"
     die "Upgrade verify thất bại; đã rollback về $old_version."
   fi
 
-  # Candidate succeeded. Normalize/commit package record last.
   package_tx_commit_record "$root/manifest.json" "$record" "$old_version" "$tx_root"
   package_tx_history "$tx_history" "$id" "$old_version" "$new_version" "success"
-
+  platform_tx_commit || die "Không thể commit package transaction."
   rm -rf "$tx_root"
   success "Đã nâng $id: $old_version -> $new_version"
 }
@@ -167,6 +167,16 @@ package_tx_restore_files() {
   done < <(find "$payload" -type f -print0)
 }
 
+package_tx_restore_record() {
+  local old_record="$1" record="$2"
+  cp -a "$old_record" "$record"
+}
+
+package_tx_cleanup_root() {
+  local tx_root="$1"
+  rm -rf "$tx_root"
+}
+
 package_tx_commit_record() {
   local manifest="$1" record="$2" old_version="$3" tx_root="$4"
 
@@ -175,7 +185,6 @@ import json,sys,datetime,os
 manifest_path,record_path,old_version,tx_root=sys.argv[1:]
 with open(manifest_path,encoding="utf-8") as f:m=json.load(f)
 
-# If candidate installer created a record, preserve useful file metadata.
 candidate={}
 if os.path.isfile(record_path):
     try:
