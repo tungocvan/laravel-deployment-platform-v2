@@ -39,17 +39,47 @@ site_create_repository_validate_contract() {
   local project_path="$1" dockerfile="$2" compose_file="$3"
   [[ -f "$project_path/$dockerfile" ]] || die "Thiếu Dockerfile repository: $dockerfile"
   [[ -f "$project_path/$compose_file" ]] || die "Thiếu Compose file repository: $compose_file"
-  site_create_repository_compose "$project_path" "$compose_file" config >/dev/null
 
-  local config
-  config="$(site_create_repository_compose "$project_path" "$compose_file" config --services)"
+  local config services
+  config="$(site_create_repository_compose "$project_path" "$compose_file" config)"
+  services="$(site_create_repository_compose "$project_path" "$compose_file" config --services)"
+
   for svc in app web db; do
-    grep -Fxq "$svc" <<<"$config" || die "Repository Compose thiếu service bắt buộc: $svc"
+    grep -Fxq "$svc" <<<"$services" || die "Repository Compose thiếu service bắt buộc: $svc"
   done
+
+  # Repository strategy owns its Docker runtime. Ensure the app build references
+  # the requested Dockerfile instead of merely shipping an unused file.
+  python3 - "$dockerfile" "$config" <<'PY' || die "Repository Compose service app không build từ Dockerfile đã chọn: $dockerfile"
+import re,sys
+wanted,text=sys.argv[1:]
+lines=text.splitlines()
+in_app=False
+app_indent=None
+in_build=False
+build_indent=None
+seen=False
+for line in lines:
+    if re.match(r'^  app:\s*$', line):
+        in_app=True; app_indent=2; continue
+    if in_app and line and not line.startswith('    '):
+        break
+    if not in_app:
+        continue
+    if re.match(r'^    build:\s*$', line):
+        in_build=True; build_indent=4; continue
+    if in_build and line and not line.startswith('      '):
+        in_build=False
+    if in_build:
+        m=re.match(r'^      dockerfile:\s*["\']?([^"\']+)["\']?\s*$', line)
+        if m and m.group(1)==wanted:
+            seen=True; break
+raise SystemExit(0 if seen else 1)
+PY
 }
 
 site_create_repository_prepare() {
-  local project_path="$1" compose_file="$2" timeout="${3:-120}"
+  local project_path="$1" compose_file="$2" http_port="$3" timeout="${4:-120}"
   site_create_repository_compose "$project_path" "$compose_file" build
   site_create_repository_compose "$project_path" "$compose_file" up -d
 
@@ -63,6 +93,13 @@ site_create_repository_prepare() {
     (( now - started < timeout )) || die "Timeout chờ repository runtime (${timeout}s)."
     sleep 2
   done
+
+  # Nginx on the host proxies to HTTP_PORT. Repository Compose must therefore
+  # publish web:80 on exactly that host port.
+  local published
+  published="$(site_create_repository_compose "$project_path" "$compose_file" port web 80 2>/dev/null | tail -n1 || true)"
+  [[ -n "$published" ]] || die "Repository Compose phải publish service web port 80"
+  [[ "${published##*:}" == "$http_port" ]] || die "Repository web port không khớp HTTP_PORT=$http_port: $published"
 }
 
 site_create_repository_finalize() {
@@ -83,6 +120,12 @@ site_create_repository_health() {
   [[ "$errors" -eq 0 ]] || die "Repository runtime health phát hiện $errors lỗi."
 }
 
+site_create_repository_cleanup() {
+  local project_path="$1" compose_file="$2"
+  [[ -d "$project_path" ]] || return 0
+  site_create_repository_compose "$project_path" "$compose_file" down -v --remove-orphans >/dev/null 2>&1 || true
+}
+
 site_create() {
   require_root
   require_command git
@@ -91,7 +134,7 @@ site_create() {
   local name="" domain="" repo="" branch="main" project_path=""
   local http_port="auto" socket_port="auto" docker_strategy="platform"
   local dockerfile="Dockerfile" compose_file="compose.yaml" ssl=1 dry_run=0 auto_yes=0 timeout=120
-  local resolved_strategy="" db_name="" committed=0 nginx_created=0 cloned=0
+  local resolved_strategy="" db_name="" committed=0 nginx_created=0
 
   for arg in "$@"; do
     case "$arg" in
@@ -140,22 +183,28 @@ site_create() {
   echo "SSL         : $ssl"
 
   if [[ "$dry_run" -eq 1 ]]; then
-    echo "[DRY-RUN] Strategy requested: $docker_strategy; repository content chưa được clone nên auto detection chưa mutate hệ thống."
-    echo "[DRY-RUN] Không thay đổi hệ thống."
+    if [[ "$docker_strategy" == "auto" ]]; then
+      echo "[DRY-RUN] Auto strategy sẽ được xác định sau khi clone repository: Dockerfile + Compose => repository, ngược lại => platform."
+    else
+      echo "[DRY-RUN] Runtime strategy: $docker_strategy"
+    fi
+    echo "[DRY-RUN] Không clone/build/start hoặc thay đổi Inventory."
     return 0
   fi
   [[ "$auto_yes" -eq 1 ]] || site_confirm "Create Laravel site?" || die "Đã hủy."
 
   trap 'rc=$?; if [[ $rc -ne 0 && $committed -eq 0 ]]; then
-          if [[ "$resolved_strategy" == "repository" && -d "$project_path" ]]; then
-            site_create_repository_compose "$project_path" "$compose_file" down -v --remove-orphans >/dev/null 2>&1 || true
+          if [[ "$resolved_strategy" == "repository" ]]; then
+            site_create_repository_cleanup "$project_path" "$compose_file"
+            [[ "$nginx_created" -eq 1 ]] && { platform_nginx_remove "$domain" >/dev/null 2>&1 || true; platform_ssl_remove "$domain" >/dev/null 2>&1 || true; }
+            [[ -d "$project_path" ]] && rm -rf "$project_path" || true
+          else
+            site_provision_cleanup_new_target "$project_path" "$domain" "$nginx_created"
           fi
-          site_provision_cleanup_new_target "$project_path" "$domain" "$nginx_created"
         fi
         exit $rc' ERR
 
   platform_git_clone "$repo" "$project_path" "$branch"
-  cloned=1
   site_create_validate_laravel "$project_path"
   resolved_strategy="$(site_create_resolve_strategy "$docker_strategy" "$project_path" "$dockerfile" "$compose_file")"
   echo "[OK] Runtime strategy resolved: $resolved_strategy"
@@ -164,7 +213,7 @@ site_create() {
 
   if [[ "$resolved_strategy" == "repository" ]]; then
     site_create_repository_validate_contract "$project_path" "$dockerfile" "$compose_file"
-    site_create_repository_prepare "$project_path" "$compose_file" "$timeout"
+    site_create_repository_prepare "$project_path" "$compose_file" "$http_port" "$timeout"
     site_create_repository_finalize "$project_path" "$compose_file"
     site_create_repository_health "$project_path" "$compose_file"
   else
