@@ -12,13 +12,16 @@ INVENTORY="$ROOT/modules/inventory/lib/inventory.sh"
 for fn in site_provision_configure_target site_provision_prepare_runtime site_provision_finalize_runtime site_provision_health site_provision_commit_inventory site_provision_cleanup_new_target; do
   grep -q "^${fn}()" "$PROV"
 done
-for fn in site_create_resolve_strategy site_create_validate_laravel site_create_repository_validate_contract site_create_repository_prepare site_create_repository_finalize site_create_repository_health site_create; do
+for fn in site_create_resolve_strategy site_create_validate_laravel site_create_repository_validate_contract site_create_repository_prepare site_create_repository_finalize site_create_repository_health site_create_repository_cleanup site_create; do
   grep -q "^${fn}()" "$CREATE"
 done
 
 grep -q 'create-strategy.sh' "$CREATE_CMD"
 grep -q 'inventory_set_runtime_strategy' "$CREATE"
 grep -q '^inventory_set_runtime_strategy()' "$INVENTORY"
+grep -q 'Repository Compose service app không build từ Dockerfile' "$CREATE"
+grep -q 'Repository web port không khớp HTTP_PORT' "$CREATE"
+grep -q 'Không clone/build/start hoặc thay đổi Inventory' "$CREATE"
 grep -q '4) Create site' "$MENU"
 grep -q 'Docker theo repository' "$MENU"
 grep -q 'Auto detect' "$MENU"
