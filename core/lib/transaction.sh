@@ -77,15 +77,21 @@ platform_tx_rollback() {
     callback="${PLATFORM_TX_ROLLBACK_FN[$i]}"
     start="${PLATFORM_TX_ROLLBACK_ARG_START[$i]}"
     count="${PLATFORM_TX_ROLLBACK_ARG_COUNT[$i]}"
+    rc=0
 
-    set +e
     if (( count > 0 )); then
-      "$callback" "${PLATFORM_TX_ROLLBACK_ARGS[@]:start:count}"
+      if "$callback" "${PLATFORM_TX_ROLLBACK_ARGS[@]:start:count}"; then
+        rc=0
+      else
+        rc=$?
+      fi
     else
-      "$callback"
+      if "$callback"; then
+        rc=0
+      else
+        rc=$?
+      fi
     fi
-    rc=$?
-    set -e
 
     if [[ "$rc" -ne 0 ]]; then
       failures=$((failures + 1))
