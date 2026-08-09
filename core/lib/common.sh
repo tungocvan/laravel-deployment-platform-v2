@@ -34,11 +34,19 @@ platform_die() {
 }
 
 require_root() {
-  [[ "${EUID:-$(id -u)}" -eq 0 ]] || die "Command này cần sudo/root."
+  [[ "${EUID:-$(id -u)}" -eq 0 ]] || platform_die \
+    "$PLATFORM_EXIT_DEPENDENCY" \
+    "CORE.ROOT_REQUIRED" \
+    "Command này cần sudo/root."
 }
 
 require_command() {
-  command -v "$1" >/dev/null 2>&1 || die "Thiếu command: $1"
+  local required_command="${1:-}"
+
+  command -v "$required_command" >/dev/null 2>&1 || platform_die \
+    "$PLATFORM_EXIT_DEPENDENCY" \
+    "CORE.REQUIRED_COMMAND_MISSING" \
+    "Thiếu command: $required_command"
 }
 
 confirm() {
