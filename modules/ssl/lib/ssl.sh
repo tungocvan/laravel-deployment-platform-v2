@@ -21,6 +21,40 @@ platform_ssl_exists() {
   [[ -f "$dir/fullchain.pem" && -f "$dir/privkey.pem" ]]
 }
 
+platform_ssl_nginx_deployed() {
+  local domain="${1:-}"
+  [[ -n "$domain" ]] || return 1
+
+  local enabled
+  enabled="$(platform_nginx_enabled_path "$domain")"
+  [[ -e "$enabled" ]] || return 1
+
+  grep -Fq "/etc/letsencrypt/live/$domain/fullchain.pem" "$enabled" 2>/dev/null \
+    && grep -Fq "/etc/letsencrypt/live/$domain/privkey.pem" "$enabled" 2>/dev/null
+}
+
+platform_ssl_install_existing() {
+  require_root
+  platform_ssl_require
+
+  local domain="${1:-}"
+  [[ -n "$domain" ]] || die "USAGE: platform ssl install <domain>"
+  platform_ssl_validate_domain "$domain"
+  platform_ssl_exists "$domain" || die "Certificate chưa tồn tại: $domain"
+
+  certbot install \
+    --cert-name "$domain" \
+    --nginx \
+    --non-interactive \
+    --redirect
+
+  platform_ssl_verify "$domain"
+  platform_ssl_nginx_deployed "$domain" \
+    || die "Certificate tồn tại nhưng chưa được deploy vào Nginx: $domain"
+  nginx -t
+  success "SSL installed/deployed vào Nginx: $domain"
+}
+
 platform_ssl_issue() {
   require_root
   platform_ssl_require
@@ -38,7 +72,22 @@ platform_ssl_issue() {
     -d "$domain"
 
   platform_ssl_verify "$domain"
+  platform_ssl_nginx_deployed "$domain" \
+    || die "Certificate đã cấp nhưng chưa được deploy vào Nginx: $domain"
+  nginx -t
   success "SSL issued/deployed: $domain"
+}
+
+platform_ssl_ensure() {
+  local domain="${1:-}"
+  [[ -n "$domain" ]] || die "USAGE: platform ssl ensure <domain>"
+
+  if platform_ssl_exists "$domain"; then
+    echo "[INFO] Certificate đã tồn tại; đảm bảo deploy lại vào Nginx: $domain"
+    platform_ssl_install_existing "$domain"
+  else
+    platform_ssl_issue "$domain"
+  fi
 }
 
 platform_ssl_show() {
