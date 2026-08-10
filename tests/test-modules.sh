@@ -65,6 +65,9 @@ CHANGE_CMD="$ROOT/modules/site/commands/change-domain.sh"
 MENU="$ROOT/modules/ui/menus/sites.sh"
 HELP="$ROOT/modules/site/commands/help.sh"
 SSL_LIB="$ROOT/modules/ssl/lib/ssl.sh"
+SSL_REPAIR_CMD="$ROOT/modules/ssl/commands/repair.sh"
+SSL_HELP="$ROOT/modules/ssl/commands/help.sh"
+SITE_REPAIR_CMD="$ROOT/modules/site/commands/repair-ssl.sh"
 PROVISION="$ROOT/modules/site/lib/provision.sh"
 
 [[ -f "$CHANGE" && -f "$CHANGE_CMD" && -f "$SSL_LIB" ]]
@@ -89,6 +92,17 @@ grep -q '6) Change domain' "$MENU"
 grep -q 'ui_flow_change_domain' "$MENU"
 grep -q 'site change-domain "\$site"' "$MENU"
 grep -q 'change-domain <site>' "$HELP"
+
+# Repair SSL must expose both domain-level and managed-site-level commands.
+[[ -f "$SSL_REPAIR_CMD" && -f "$SITE_REPAIR_CMD" ]]
+grep -q 'platform_ssl_ensure "\$@"' "$SSL_REPAIR_CMD"
+grep -q 'platform_ssl_ensure "\$domain"' "$SITE_REPAIR_CMD"
+grep -q 'ssl_status.*active' "$SITE_REPAIR_CMD"
+grep -q 'repair <domain>' "$SSL_HELP"
+grep -q 'repair-ssl <site>' "$HELP"
+grep -q '16) Repair SSL' "$MENU"
+grep -q 'ui_flow_repair_ssl' "$MENU"
+grep -q 'site repair-ssl "\$site"' "$MENU"
 
 # Change-domain must not run migrations or database seeding.
 if grep -Eq 'artisan[[:space:]]+(migrate|db:seed)' "$CHANGE"; then
