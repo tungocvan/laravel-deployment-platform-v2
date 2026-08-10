@@ -10,6 +10,10 @@ COMMANDS
   issue <domain>
       Issue/deploy certificate via Certbot Nginx plugin.
 
+  repair <domain>
+      Repair SSL deployment. Reuse an existing certificate when present,
+      re-attach it to the matching Nginx vhost, or issue a new certificate.
+
   show <domain>
       Show certificate metadata.
 
@@ -27,6 +31,7 @@ COMMANDS
 
 EXAMPLES
   sudo platform ssl issue nvh.tungocvan.com
+  sudo platform ssl repair nvh.tungocvan.com
   platform ssl show nvh.tungocvan.com
   sudo platform ssl verify nvh.tungocvan.com
 EOF
