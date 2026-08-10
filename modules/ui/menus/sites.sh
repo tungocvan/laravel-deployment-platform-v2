@@ -23,6 +23,7 @@ ui_menu_sites() {
  13) Restore archived site
  14) Danh sách archive
  15) Purge
+ 16) Repair SSL
 
   0) Back
 
@@ -45,6 +46,7 @@ EOF
       13) ui_flow_restore_archive ;;
       14) ui_run site archives; ui_pause ;;
       15) ui_flow_purge ;;
+      16) ui_flow_repair_ssl ;;
       0) return 0 ;;
     esac
   done
@@ -182,6 +184,14 @@ ui_flow_change_domain() {
   ui_section "CHANGE DOMAIN / DRY-RUN"
   ui_run_sudo "${args[@]}" --dry-run || { ui_pause; return; }
   ui_confirm_execute "CHANGE DOMAIN: $site -> $domain" && ui_run_sudo "${args[@]}" --yes
+  ui_pause
+}
+
+ui_flow_repair_ssl() {
+  local site
+  site="$(ui_select_site "Chọn site cần Repair SSL")" || return 0
+  ui_section "REPAIR SSL"
+  ui_confirm_execute "REPAIR SSL: $site" && ui_run_sudo site repair-ssl "$site"
   ui_pause
 }
 
