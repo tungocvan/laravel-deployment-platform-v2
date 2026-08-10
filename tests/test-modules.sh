@@ -57,4 +57,33 @@ if grep -q 'app/example.php' <<<"$changes"; then
   exit 1
 fi
 
+# Managed change-domain contract: stage new domain first, refresh APP_URL/runtime,
+# update Inventory trace, then remove only the old managed Nginx config.
+CHANGE="$ROOT/modules/site/lib/change-domain.sh"
+CHANGE_CMD="$ROOT/modules/site/commands/change-domain.sh"
+MENU="$ROOT/modules/ui/menus/sites.sh"
+HELP="$ROOT/modules/site/commands/help.sh"
+
+[[ -f "$CHANGE" && -f "$CHANGE_CMD" ]]
+for fn in site_change_domain_record_inventory site_change_domain_refresh_app site_change_domain_gate site_change_domain; do
+  grep -q "^${fn}()" "$CHANGE"
+done
+grep -q 'platform_nginx_ensure_proxy "\$new_domain"' "$CHANGE"
+grep -q 'platform_ssl_issue "\$new_domain"' "$CHANGE"
+grep -q 'APP_URL "\$new_app_url"' "$CHANGE"
+grep -q 'previous_domain' "$CHANGE"
+grep -q 'platform_nginx_remove "\$old_domain"' "$CHANGE"
+grep -q 'Certificate cũ' "$CHANGE"
+grep -q 'site_change_domain "\$@"' "$CHANGE_CMD"
+grep -q '6) Change domain' "$MENU"
+grep -q 'ui_flow_change_domain' "$MENU"
+grep -q 'site change-domain "\$site"' "$MENU"
+grep -q 'change-domain <site>' "$HELP"
+
+# Change-domain must not run migrations or database seeding.
+if grep -Eq 'artisan[[:space:]]+(migrate|db:seed)' "$CHANGE"; then
+  echo "[ERROR] Change-domain không được migrate hoặc db:seed."
+  exit 1
+fi
+
 echo "[OK] module tests"
