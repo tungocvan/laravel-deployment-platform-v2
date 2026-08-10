@@ -39,7 +39,6 @@ site_change_domain_refresh_app() {
         || warn "route:cache thất bại; tiếp tục."
       site_create_repository_compose "$project_path" "$compose_file" exec -T app php artisan view:cache \
         || warn "view:cache thất bại; tiếp tục."
-      # Restart long-running Laravel processes so they reload cached APP_URL/config.
       site_create_repository_compose "$project_path" "$compose_file" restart app queue scheduler 2>/dev/null \
         || site_create_repository_compose "$project_path" "$compose_file" restart app
       site_create_repository_health "$project_path" "$compose_file"
@@ -102,7 +101,7 @@ site_change_domain() {
   platform_nginx_validate_domain "$new_domain"
   inventory_find_json "$key" >/dev/null 2>&1 || die "Không tìm thấy managed site: $key"
 
-  local name old_domain project_path http_port strategy env_file old_app_url ssl_status
+  local name old_domain project_path http_port strategy env_file old_app_url new_app_url ssl_status
   name="$(inventory_get_field "$key" name)"
   old_domain="$(inventory_get_field "$key" domain)"
   project_path="$(inventory_get_field "$key" path)"
@@ -118,9 +117,12 @@ site_change_domain() {
   site_change_domain_gate "$new_domain" "$use_ssl" "$replace_domain_config"
 
   old_app_url="$(sed -n -E 's/^APP_URL=(.*)$/\1/p' "$env_file" | tail -n1)"
+  if [[ "$use_ssl" -eq 1 ]]; then new_app_url="https://$new_domain"; else new_app_url="http://$new_domain"; fi
+
   echo "Site        : $name"
   echo "Old domain  : $old_domain"
   echo "New domain  : $new_domain"
+  echo "APP_URL     : $new_app_url"
   echo "Path        : $project_path"
   echo "HTTP port   : $http_port"
   echo "Strategy    : $strategy"
@@ -148,7 +150,6 @@ site_change_domain() {
         fi
         exit $rc' ERR
 
-  # Stage the new domain first. Old domain remains active throughout this phase.
   platform_nginx_ensure_proxy "$new_domain" "$http_port"
   new_nginx_created=1
 
@@ -163,14 +164,13 @@ site_change_domain() {
     ssl_status="skipped"
   fi
 
-  site_provision_set_env_value "$env_file" APP_URL "https://$new_domain"
+  site_provision_set_env_value "$env_file" APP_URL "$new_app_url"
   app_url_changed=1
   site_change_domain_refresh_app "$name" "$project_path" "$strategy"
 
   site_change_domain_record_inventory "$name" "$old_domain" "$new_domain" "$ssl_status"
   inventory_changed=1
 
-  # Cut over only after new domain/runtime are healthy.
   platform_nginx_remove "$old_domain"
   trap - ERR
 
