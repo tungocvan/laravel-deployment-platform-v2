@@ -13,6 +13,7 @@ COMMANDS
   create --name=... --domain=... --repo=... [options]
   update <site> [--dry-run] [--yes] [--timeout=N]
   change-domain <site> --domain=<new-domain> [--dry-run] [--yes] [--no-ssl]
+  repair-ssl <site>
   duplicate --from=... --name=... --domain=... [options]
 
 UPDATE
@@ -24,6 +25,10 @@ CHANGE DOMAIN
   Đổi domain của managed site nhưng giữ nguyên code, database, storage, path và ports.
   Domain mới được preflight + tạo Nginx/SSL trước; chỉ sau khi runtime healthy mới
   cập nhật APP_URL/Inventory và remove Nginx domain cũ. Certificate cũ được giữ lại.
+
+REPAIR SSL
+  Repair SSL cho domain hiện tại của managed site. Nếu certificate đã tồn tại,
+  Platform re-attach certificate vào Nginx; nếu chưa có thì issue certificate mới.
 
 LIFECYCLE
   disable <site> [--yes]
@@ -53,6 +58,7 @@ RECOMMENDED
   site update <site> --dry-run
   site update <site>
   site change-domain <site> --domain=<new-domain> --dry-run
+  site repair-ssl <site>
   site archive <site>
   site purge <site> --dry-run
   site purge <site>
