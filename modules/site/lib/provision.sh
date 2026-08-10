@@ -81,12 +81,7 @@ site_provision_configure_web() {
   platform_nginx_ensure_proxy "$domain" "$http_port"
 
   if [[ "$use_ssl" -eq 1 ]]; then
-    if platform_ssl_exists "$domain"; then
-      platform_ssl_verify "$domain"
-      echo "[OK] SSL đã tồn tại, giữ nguyên: $domain"
-    else
-      platform_ssl_issue "$domain"
-    fi
+    platform_ssl_ensure "$domain"
   else
     echo "[INFO] SSL skipped."
   fi
