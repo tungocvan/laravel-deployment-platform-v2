@@ -130,7 +130,7 @@ site_change_domain() {
   echo "Keep data   : database/storage/path unchanged"
 
   if [[ "$dry_run" -eq 1 ]]; then
-    echo "[DRY-RUN] Sẽ tạo Nginx domain mới, cấp SSL (nếu bật), đổi APP_URL, refresh Laravel, cập nhật Inventory, rồi remove Nginx domain cũ."
+    echo "[DRY-RUN] Sẽ tạo Nginx domain mới, ensure SSL deploy (nếu bật), đổi APP_URL, refresh Laravel, cập nhật Inventory, rồi remove Nginx domain cũ."
     echo "[DRY-RUN] Certificate domain cũ được giữ lại; không xóa tự động."
     return 0
   fi
@@ -154,11 +154,7 @@ site_change_domain() {
   new_nginx_created=1
 
   if [[ "$use_ssl" -eq 1 ]]; then
-    if platform_ssl_exists "$new_domain"; then
-      platform_ssl_verify "$new_domain"
-    else
-      platform_ssl_issue "$new_domain"
-    fi
+    platform_ssl_ensure "$new_domain"
     ssl_status="active"
   else
     ssl_status="skipped"
