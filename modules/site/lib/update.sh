@@ -9,6 +9,71 @@ site_update_assert_clean() {
   [[ -z "$dirty" ]] || die "Working tree có thay đổi local; từ chối update để tránh mất dữ liệu."
 }
 
+site_update_storage_changed_files() {
+  local project_path="$1" old_commit="$2" new_commit="$3"
+  git -C "$project_path" diff \
+    --name-only \
+    --diff-filter=AM \
+    --no-renames \
+    "$old_commit" "$new_commit" -- storage/app/public/
+}
+
+site_update_storage_write_file() {
+  local key="$1" project_path="$2" strategy="$3" relative_path="$4"
+  local source_file="$project_path/$relative_path"
+  local storage_relative="${relative_path#storage/app/public/}"
+
+  [[ "$relative_path" == storage/app/public/* ]] || die "Storage sync path không hợp lệ: $relative_path"
+  [[ -n "$storage_relative" && -f "$source_file" ]] || die "Storage sync source không tồn tại: $relative_path"
+
+  case "$strategy" in
+    repository)
+      local compose_file
+      compose_file="$(inventory_get_field "$key" compose_file 2>/dev/null || true)"
+      compose_file="${compose_file:-compose.yaml}"
+      cat "$source_file" | site_create_repository_compose "$project_path" "$compose_file" \
+        exec -T app sh -c '
+          set -e
+          relative="$1"
+          destination="storage/app/public/$relative"
+          mkdir -p "$(dirname "$destination")"
+          cat > "$destination"
+          chown www-data:www-data "$destination" 2>/dev/null || true
+          chmod 664 "$destination" 2>/dev/null || true
+        ' sh "$storage_relative"
+      ;;
+    platform|"")
+      cat "$source_file" | deploy_compose "$project_path" \
+        exec -T app sh -c '
+          set -e
+          relative="$1"
+          destination="storage/app/public/$relative"
+          mkdir -p "$(dirname "$destination")"
+          cat > "$destination"
+          chown www-data:www-data "$destination" 2>/dev/null || true
+          chmod 664 "$destination" 2>/dev/null || true
+        ' sh "$storage_relative"
+      ;;
+    *) die "Runtime strategy không hỗ trợ storage sync: $strategy" ;;
+  esac
+}
+
+site_update_sync_git_public_storage() {
+  local key="$1" project_path="$2" strategy="$3" old_commit="$4" new_commit="$5"
+  local -a files=()
+  local relative_path
+
+  mapfile -t files < <(site_update_storage_changed_files "$project_path" "$old_commit" "$new_commit")
+  [[ "${#files[@]}" -gt 0 ]] || return 0
+
+  echo "[UPDATE STORAGE] Đồng bộ ${#files[@]} file Git-managed vào persistent storage"
+  for relative_path in "${files[@]}"; do
+    [[ -n "$relative_path" ]] || continue
+    echo "[UPDATE STORAGE] $relative_path"
+    site_update_storage_write_file "$key" "$project_path" "$strategy" "$relative_path"
+  done
+}
+
 site_update_record_commit() {
   local key="$1" old_commit="$2" new_commit="$3" branch="$4" repo="$5"
   inventory_init
@@ -131,8 +196,16 @@ site_update() {
   git -C "$project_path" merge-base --is-ancestor "$old_commit" "$new_commit" \
     || die "Remote không phải fast-forward từ commit hiện tại; từ chối update tự động."
 
+  local -a storage_changes=()
+  mapfile -t storage_changes < <(site_update_storage_changed_files "$project_path" "$old_commit" "$new_commit")
+  if [[ "${#storage_changes[@]}" -gt 0 ]]; then
+    echo "Git storage : ${#storage_changes[@]} file(s) sẽ đồng bộ vào persistent storage"
+    printf '  - %s\n' "${storage_changes[@]}"
+  fi
+
   if [[ "$dry_run" -eq 1 ]]; then
     echo "[DRY-RUN] Sẽ fast-forward $old_commit -> $new_commit và deploy lại; không db:seed."
+    [[ "${#storage_changes[@]}" -eq 0 ]] || echo "[DRY-RUN] File Git-managed trong storage/app/public sẽ được đồng bộ sau deploy."
     return 0
   fi
 
@@ -148,6 +221,7 @@ site_update() {
 
   git -C "$project_path" merge --ff-only "origin/$branch"
   site_update_deploy "$name" "$project_path" "$strategy" "$timeout"
+  site_update_sync_git_public_storage "$name" "$project_path" "$strategy" "$old_commit" "$new_commit"
 
   local deployed_commit
   deployed_commit="$(git -C "$project_path" rev-parse HEAD)"
