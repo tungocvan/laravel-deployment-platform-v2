@@ -11,17 +11,18 @@ ui_menu_sites() {
   3) Site doctor
   4) Create site
   5) Update site from GitHub
-  6) Duplicate site
+  6) Change domain
+  7) Duplicate site
 
-  7) Enable
-  8) Disable
-  9) Maintenance ON
- 10) Maintenance OFF
+  8) Enable
+  9) Disable
+ 10) Maintenance ON
+ 11) Maintenance OFF
 
- 11) Archive
- 12) Restore archived site
- 13) Danh sách archive
- 14) Purge
+ 12) Archive
+ 13) Restore archived site
+ 14) Danh sách archive
+ 15) Purge
 
   0) Back
 
@@ -34,15 +35,16 @@ EOF
       3) site="$(ui_select_site "Chọn site cần kiểm tra")" || continue; ui_run site doctor "$site"; ui_pause ;;
       4) ui_flow_create ;;
       5) ui_flow_update ;;
-      6) ui_flow_duplicate ;;
-      7) site="$(ui_select_site "Chọn site cần ENABLE")" || continue; ui_confirm_execute "ENABLE SITE: $site" && ui_run_sudo site enable "$site" --yes; ui_pause ;;
-      8) site="$(ui_select_site "Chọn site cần DISABLE")" || continue; ui_confirm_execute "DISABLE SITE: $site" && ui_run_sudo site disable "$site" --yes; ui_pause ;;
-      9) site="$(ui_select_site "Chọn site")" || continue; ui_confirm_execute "MAINTENANCE ON: $site" && ui_run_sudo site maintenance on "$site"; ui_pause ;;
-      10) site="$(ui_select_site "Chọn site")" || continue; ui_confirm_execute "MAINTENANCE OFF: $site" && ui_run_sudo site maintenance off "$site"; ui_pause ;;
-      11) ui_flow_archive ;;
-      12) ui_flow_restore_archive ;;
-      13) ui_run site archives; ui_pause ;;
-      14) ui_flow_purge ;;
+      6) ui_flow_change_domain ;;
+      7) ui_flow_duplicate ;;
+      8) site="$(ui_select_site "Chọn site cần ENABLE")" || continue; ui_confirm_execute "ENABLE SITE: $site" && ui_run_sudo site enable "$site" --yes; ui_pause ;;
+      9) site="$(ui_select_site "Chọn site cần DISABLE")" || continue; ui_confirm_execute "DISABLE SITE: $site" && ui_run_sudo site disable "$site" --yes; ui_pause ;;
+      10) site="$(ui_select_site "Chọn site")" || continue; ui_confirm_execute "MAINTENANCE ON: $site" && ui_run_sudo site maintenance on "$site"; ui_pause ;;
+      11) site="$(ui_select_site "Chọn site")" || continue; ui_confirm_execute "MAINTENANCE OFF: $site" && ui_run_sudo site maintenance off "$site"; ui_pause ;;
+      12) ui_flow_archive ;;
+      13) ui_flow_restore_archive ;;
+      14) ui_run site archives; ui_pause ;;
+      15) ui_flow_purge ;;
       0) return 0 ;;
     esac
   done
@@ -130,6 +132,56 @@ ui_flow_update() {
   ui_section "UPDATE SITE / DRY-RUN"
   ui_run_sudo site update "$site" --dry-run || { ui_pause; return; }
   ui_confirm_execute "UPDATE FROM GITHUB: $site" && ui_run_sudo site update "$site" --yes
+  ui_pause
+}
+
+ui_flow_change_domain() {
+  local site domain ssl=1 domain_rc=0 replace_domain=0
+  site="$(ui_select_site "Chọn site cần đổi domain")" || return 0
+  domain="$(ui_prompt "Domain mới")"
+  [[ -n "$domain" ]] || { echo "[ERROR] Domain bắt buộc."; ui_pause; return; }
+
+  ui_section "NEW DOMAIN / SSL PREFLIGHT"
+  ui_run site domain-preflight "$domain" || domain_rc=$?
+  case "$domain_rc" in
+    0) ;;
+    10)
+      ui_yesno "Domain có Nginx config cũ do Platform quản lý. Làm mới config?" "N" \
+        || { echo "[INFO] Đã hủy Change Domain."; ui_pause; return; }
+      replace_domain=1
+      ;;
+    11)
+      ui_yesno "DNS chưa trỏ đúng VPS. Đổi domain KHÔNG SSL?" "N" \
+        || { echo "[INFO] Đã hủy Change Domain."; ui_pause; return; }
+      ssl=0
+      ;;
+    12)
+      ui_yesno "Domain có Nginx config cũ do Platform quản lý. Làm mới config?" "N" \
+        || { echo "[INFO] Đã hủy Change Domain."; ui_pause; return; }
+      replace_domain=1
+      ui_yesno "DNS chưa trỏ đúng VPS. Đổi domain KHÔNG SSL?" "N" \
+        || { echo "[INFO] Đã hủy Change Domain."; ui_pause; return; }
+      ssl=0
+      ;;
+    21|22)
+      echo "[ERROR] Domain conflict không thể tự động ghi đè."
+      ui_pause
+      return
+      ;;
+    *)
+      echo "[ERROR] Domain preflight thất bại (exit=$domain_rc)."
+      ui_pause
+      return
+      ;;
+  esac
+
+  local args=(site change-domain "$site" "--domain=$domain")
+  [[ "$ssl" -eq 0 ]] && args+=(--no-ssl)
+  [[ "$replace_domain" -eq 1 ]] && args+=(--replace-domain-config)
+
+  ui_section "CHANGE DOMAIN / DRY-RUN"
+  ui_run_sudo "${args[@]}" --dry-run || { ui_pause; return; }
+  ui_confirm_execute "CHANGE DOMAIN: $site -> $domain" && ui_run_sudo "${args[@]}" --yes
   ui_pause
 }
 
