@@ -57,19 +57,29 @@ if grep -q 'app/example.php' <<<"$changes"; then
   exit 1
 fi
 
-# Managed change-domain contract: stage new domain first, refresh APP_URL/runtime,
-# update Inventory trace, then remove only the old managed Nginx config.
+# Managed change-domain contract: stage new domain first, ensure the certificate
+# is actually deployed into Nginx, refresh APP_URL/runtime, update Inventory trace,
+# then remove only the old managed Nginx config.
 CHANGE="$ROOT/modules/site/lib/change-domain.sh"
 CHANGE_CMD="$ROOT/modules/site/commands/change-domain.sh"
 MENU="$ROOT/modules/ui/menus/sites.sh"
 HELP="$ROOT/modules/site/commands/help.sh"
+SSL_LIB="$ROOT/modules/ssl/lib/ssl.sh"
+PROVISION="$ROOT/modules/site/lib/provision.sh"
 
-[[ -f "$CHANGE" && -f "$CHANGE_CMD" ]]
+[[ -f "$CHANGE" && -f "$CHANGE_CMD" && -f "$SSL_LIB" ]]
 for fn in site_change_domain_record_inventory site_change_domain_refresh_app site_change_domain_gate site_change_domain; do
   grep -q "^${fn}()" "$CHANGE"
 done
+for fn in platform_ssl_nginx_deployed platform_ssl_install_existing platform_ssl_ensure; do
+  grep -q "^${fn}()" "$SSL_LIB"
+done
+grep -q 'certbot install' "$SSL_LIB"
+grep -q -- '--cert-name "\$domain"' "$SSL_LIB"
+grep -q 'platform_ssl_nginx_deployed "\$domain"' "$SSL_LIB"
 grep -q 'platform_nginx_ensure_proxy "\$new_domain"' "$CHANGE"
-grep -q 'platform_ssl_issue "\$new_domain"' "$CHANGE"
+grep -q 'platform_ssl_ensure "\$new_domain"' "$CHANGE"
+grep -q 'platform_ssl_ensure "\$domain"' "$PROVISION"
 grep -q 'APP_URL "\$new_app_url"' "$CHANGE"
 grep -q 'previous_domain' "$CHANGE"
 grep -q 'platform_nginx_remove "\$old_domain"' "$CHANGE"
