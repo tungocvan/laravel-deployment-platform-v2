@@ -12,14 +12,20 @@ COMMANDS
   doctor <site>
   create --name=... --domain=... --repo=... [options]
   update <site> [--dry-run] [--yes] [--timeout=N]
+  production-seed <site>
   change-domain <site> --domain=<new-domain> [--dry-run] [--yes] [--no-ssl]
   repair-ssl <site>
   duplicate --from=... --name=... --domain=... [options]
 
 UPDATE
-  Fast-forward site từ origin/<branch>, deploy lại runtime, migrate, optimize,
-  health check và cập nhật commit trong Inventory. Update không chạy db:seed.
-  Working tree có local changes hoặc Git history diverged sẽ bị từ chối.
+  Đồng bộ chính xác site về origin/<branch>, deploy lại runtime, migrate, chạy
+  Production Seed allow-list, optimize/health check và cập nhật commit Inventory.
+  Không chạy DatabaseSeeder hoặc db:seed toàn bộ.
+
+PRODUCTION SEED
+  Đồng bộ metadata production-safe được allow-list. Hiện tại gồm:
+  Modules\Role\database\seeders\RolesAndPermissionsSeeder
+  sau đó chạy permission:cache-reset. Nếu seeder không tồn tại thì bỏ qua an toàn.
 
 CHANGE DOMAIN
   Đổi domain của managed site nhưng giữ nguyên code, database, storage, path và ports.
@@ -57,9 +63,9 @@ PURGE OPTIONS
 RECOMMENDED
   site update <site> --dry-run
   site update <site>
+  site production-seed <site>
   site change-domain <site> --domain=<new-domain> --dry-run
   site repair-ssl <site>
   site archive <site>
   site purge <site> --dry-run
-  site purge <site>
 EOF
