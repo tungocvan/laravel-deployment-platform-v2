@@ -29,7 +29,7 @@ done
 for fn in site_update_local_changes site_update_record_commit site_update_deploy site_update; do
   grep -q "^${fn}()" "$UPDATE"
 done
-for fn in site_env_context site_env_get site_env_backup site_env_write_value site_env_refresh site_env_set site_env_command; do
+for fn in site_env_context site_env_validate_key site_env_apply_permissions site_env_compose site_env_status site_env_get site_env_backup site_env_latest_backup site_env_write_value site_env_validate site_env_refresh site_env_restore_file site_env_set site_env_command; do
   grep -q "^${fn}()" "$ENV_LIB"
 done
 for fn in site_storage_context site_storage_compose site_storage_status site_storage_repair site_storage_list site_storage_put site_storage_command; do
@@ -80,15 +80,27 @@ grep -q 'Auto detect' "$MENU"
 grep -q 'ui_flow_create' "$MENU"
 grep -q "grep -vi '^::ffff:'" "$DOMAIN"
 
-# Environment/storage safety contracts.
-grep -q 'chmod 600' "$ENV_LIB"
+# Environment safety contract: .env is app-manageable but secret, operations are
+# atomic/backupable and must NEVER mutate Docker topology.
+grep -q 'chown root:www-data' "$ENV_LIB"
+grep -q 'chmod 660' "$ENV_LIB"
 grep -q '.platform-backups/env' "$ENV_LIB"
 grep -q 'os.replace(tmp,path)' "$ENV_LIB"
-grep -q 'up -d --force-recreate app queue scheduler socket' "$ENV_LIB"
+grep -q 'optimize:clear' "$ENV_LIB"
+grep -q 'php artisan about' "$ENV_LIB"
+grep -q 'http://127.0.0.1:8080/up' "$ENV_LIB"
+grep -q 'rollback' "$ENV_LIB"
+grep -q 'restore' "$ENV_LIB"
+if grep -Eq 'up[[:space:]]+-d|--force-recreate|compose.*down|restart[[:space:]]+(app|web|socket|queue|scheduler|db|redis)' "$ENV_LIB"; then
+  echo "[ERROR] Env management không được thay đổi Docker container lifecycle/topology."
+  exit 1
+fi
 if grep -Eq 'cat[[:space:]]+.*\.env|print.*\.env' "$ENV_LIB"; then
   echo "[ERROR] Env management không được có command dump toàn bộ .env."
   exit 1
 fi
+
+# Storage safety contract.
 grep -q 'public/storage' "$STORAGE_LIB"
 grep -q 'chown -R www-data:www-data storage bootstrap/cache' "$STORAGE_LIB"
 grep -q 'Storage path không được chứa' "$STORAGE_LIB"
