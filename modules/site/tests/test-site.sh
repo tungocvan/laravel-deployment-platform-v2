@@ -29,7 +29,7 @@ done
 for fn in site_update_local_changes site_update_record_commit site_update_deploy site_update; do
   grep -q "^${fn}()" "$UPDATE"
 done
-for fn in site_env_context site_env_validate_key site_env_apply_permissions site_env_compose site_env_status site_env_get site_env_backup site_env_latest_backup site_env_write_value site_env_validate site_env_refresh site_env_restore_file site_env_set site_env_command; do
+for fn in site_env_context site_env_validate_key site_env_apply_permissions site_env_compose site_env_status site_env_get site_env_backup site_env_latest_backup site_env_write_content_in_place site_env_write_value site_env_validate site_env_refresh site_env_restore_file site_env_set site_env_command; do
   grep -q "^${fn}()" "$ENV_LIB"
 done
 for fn in site_storage_context site_storage_compose site_storage_status site_storage_repair site_storage_list site_storage_put site_storage_command; do
@@ -80,17 +80,28 @@ grep -q 'Auto detect' "$MENU"
 grep -q 'ui_flow_create' "$MENU"
 grep -q "grep -vi '^::ffff:'" "$DOMAIN"
 
-# Environment safety contract: .env is app-manageable but secret, operations are
-# atomic/backupable and must NEVER mutate Docker topology.
+# Environment safety contract: .env is app-manageable but secret. Repository
+# sites bind-mount ./.env as a single file, so ENV operations MUST preserve its
+# inode; rename/replace would strand running containers on a stale bind inode.
 grep -q 'chown root:www-data' "$ENV_LIB"
 grep -q 'chmod 660' "$ENV_LIB"
 grep -q '.platform-backups/env' "$ENV_LIB"
-grep -q 'os.replace(tmp,path)' "$ENV_LIB"
+grep -q 'site_env_write_content_in_place' "$ENV_LIB"
+grep -q 'fcntl.LOCK_EX' "$ENV_LIB"
+grep -q 'f.truncate()' "$ENV_LIB"
+grep -q 'os.fsync' "$ENV_LIB"
+grep -q 'inode_before' "$ENV_LIB"
+grep -q 'Validate actual write as www-data' "$ENV_LIB"
+grep -q 'file_put_contents' "$ENV_LIB"
 grep -q 'optimize:clear' "$ENV_LIB"
 grep -q 'php artisan about' "$ENV_LIB"
 grep -q 'http://127.0.0.1:8080/up' "$ENV_LIB"
-grep -q 'rollback' "$ENV_LIB"
-grep -q 'restore' "$ENV_LIB"
+grep -q 'rollback in-place' "$ENV_LIB"
+grep -q 'Restore in-place' "$ENV_LIB"
+if grep -Eq 'os\.replace|os\.rename|mv[[:space:]].*\.env|mv[[:space:]].*env_file' "$ENV_LIB"; then
+  echo "[ERROR] Env management không được replace/rename .env bind-mounted inode."
+  exit 1
+fi
 if grep -Eq 'up[[:space:]]+-d|--force-recreate|compose.*down|restart[[:space:]]+(app|web|socket|queue|scheduler|db|redis)' "$ENV_LIB"; then
   echo "[ERROR] Env management không được thay đổi Docker container lifecycle/topology."
   exit 1
@@ -99,6 +110,26 @@ if grep -Eq 'cat[[:space:]]+.*\.env|print.*\.env' "$ENV_LIB"; then
   echo "[ERROR] Env management không được có command dump toàn bộ .env."
   exit 1
 fi
+
+# Verify the in-place writer really preserves inode and changes content.
+TEST_ENV_LIB="$ENV_LIB" TEST_ENV_TMP="$(mktemp -d)" bash -c '
+  set -Eeuo pipefail
+  require_root(){ :; }
+  die(){ echo "$*" >&2; return 1; }
+  source "$TEST_ENV_LIB"
+  envfile="$TEST_ENV_TMP/.env"
+  printf "%s\n" "APP_NAME=Old" "APP_URL=https://old.test" > "$envfile"
+  inode_before="$(stat -c "%i" "$envfile")"
+  site_env_write_value "$envfile" APP_URL https://new.test
+  inode_after="$(stat -c "%i" "$envfile")"
+  [[ "$inode_before" == "$inode_after" ]]
+  grep -q "^APP_URL=https://new.test$" "$envfile"
+  backup="$TEST_ENV_TMP/backup"
+  printf "%s\n" "APP_NAME=Restored" > "$backup"
+  site_env_write_content_in_place "$envfile" "$backup"
+  [[ "$inode_before" == "$(stat -c "%i" "$envfile")" ]]
+  grep -q "^APP_NAME=Restored$" "$envfile"
+'
 
 # Storage safety contract.
 grep -q 'public/storage' "$STORAGE_LIB"
