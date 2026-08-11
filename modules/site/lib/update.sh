@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
 
-site_update_assert_clean() {
+site_update_local_changes() {
   local project_path="$1"
   [[ -d "$project_path/.git" ]] || die "Site không phải Git working tree: $project_path"
-
-  local dirty
-  dirty="$(git -C "$project_path" status --porcelain)"
-  [[ -z "$dirty" ]] || die "Working tree có thay đổi local; từ chối update để tránh mất dữ liệu."
+  git -C "$project_path" status --porcelain --untracked-files=no
 }
 
 site_update_storage_changed_files() {
@@ -153,7 +150,7 @@ site_update() {
 
   inventory_find_json "$key" >/dev/null 2>&1 || die "Không tìm thấy managed site: $key"
 
-  local name project_path branch current_branch repo actual_repo strategy old_commit new_commit
+  local name project_path branch current_branch repo actual_repo strategy old_commit new_commit dirty
   name="$(inventory_get_field "$key" name)"
   project_path="$(inventory_get_field "$key" path)"
   branch="$(inventory_get_field "$key" branch)"
@@ -162,7 +159,7 @@ site_update() {
   strategy="${strategy:-platform}"
 
   [[ -d "$project_path" ]] || die "Project path không tồn tại: $project_path"
-  site_update_assert_clean "$project_path"
+  [[ -d "$project_path/.git" ]] || die "Site không phải Git working tree: $project_path"
 
   current_branch="$(git -C "$project_path" branch --show-current)"
   [[ -n "$current_branch" ]] || die "Git đang detached HEAD; từ chối update."
@@ -177,6 +174,8 @@ site_update() {
   repo="${repo:-$actual_repo}"
 
   old_commit="$(git -C "$project_path" rev-parse HEAD)"
+  dirty="$(site_update_local_changes "$project_path")"
+
   echo "[UPDATE] Fetch origin/$branch"
   git -C "$project_path" fetch --prune origin "$branch"
   new_commit="$(git -C "$project_path" rev-parse "origin/$branch")"
@@ -188,40 +187,67 @@ site_update() {
   echo "Old commit  : $old_commit"
   echo "New commit  : $new_commit"
 
-  if [[ "$old_commit" == "$new_commit" ]]; then
+  if [[ -n "$dirty" ]]; then
+    echo "Local changes:"
+    printf '%s\n' "$dirty"
+    warn "Managed production policy: GitHub origin/$branch là source of truth."
+    if [[ "$dry_run" -eq 1 ]]; then
+      echo "[DRY-RUN] Local tracked changes sẽ bị loại bỏ bằng git reset --hard origin/$branch."
+    else
+      warn "Local tracked changes sẽ bị loại bỏ trước deploy."
+    fi
+  fi
+
+  if [[ "$old_commit" != "$new_commit" ]]; then
+    git -C "$project_path" merge-base --is-ancestor "$old_commit" "$new_commit" \
+      || die "Remote không phải fast-forward từ commit hiện tại; từ chối update tự động."
+  fi
+
+  local -a storage_changes=()
+  if [[ "$old_commit" != "$new_commit" ]]; then
+    mapfile -t storage_changes < <(site_update_storage_changed_files "$project_path" "$old_commit" "$new_commit")
+    if [[ "${#storage_changes[@]}" -gt 0 ]]; then
+      echo "Git storage : ${#storage_changes[@]} file(s) sẽ đồng bộ vào persistent storage"
+      printf '  - %s\n' "${storage_changes[@]}"
+    fi
+  fi
+
+  if [[ "$old_commit" == "$new_commit" && -z "$dirty" ]]; then
     success "Site đã ở commit mới nhất; không cần deploy: $name"
     return 0
   fi
 
-  git -C "$project_path" merge-base --is-ancestor "$old_commit" "$new_commit" \
-    || die "Remote không phải fast-forward từ commit hiện tại; từ chối update tự động."
-
-  local -a storage_changes=()
-  mapfile -t storage_changes < <(site_update_storage_changed_files "$project_path" "$old_commit" "$new_commit")
-  if [[ "${#storage_changes[@]}" -gt 0 ]]; then
-    echo "Git storage : ${#storage_changes[@]} file(s) sẽ đồng bộ vào persistent storage"
-    printf '  - %s\n' "${storage_changes[@]}"
-  fi
-
   if [[ "$dry_run" -eq 1 ]]; then
-    echo "[DRY-RUN] Sẽ fast-forward $old_commit -> $new_commit và deploy lại; không db:seed."
+    if [[ "$old_commit" == "$new_commit" ]]; then
+      echo "[DRY-RUN] Commit đã mới nhất nhưng working tree dirty; sẽ reset về origin/$branch và deploy lại; không db:seed."
+    else
+      echo "[DRY-RUN] Sẽ reset source về origin/$branch ($old_commit -> $new_commit) và deploy lại; không db:seed."
+    fi
     [[ "${#storage_changes[@]}" -eq 0 ]] || echo "[DRY-RUN] File Git-managed trong storage/app/public sẽ được đồng bộ sau deploy."
     return 0
   fi
 
-  [[ "$auto_yes" -eq 1 ]] || site_confirm "Update site $name từ GitHub?" || die "Đã hủy."
+  [[ "$auto_yes" -eq 1 ]] || site_confirm "Update site $name từ GitHub? Local tracked changes (nếu có) sẽ bị loại bỏ." || die "Đã hủy."
 
   trap 'rc=$?; if [[ $rc -ne 0 ]]; then
-          warn "Update/deploy thất bại. Git hiện có thể đã ở commit mới."
+          warn "Update/deploy thất bại. Git hiện có thể đã ở commit target."
           warn "OLD_COMMIT=$old_commit"
           warn "TARGET_COMMIT=$new_commit"
-          warn "Không tự git reset vì migration có thể đã chạy; cần đánh giá rollback trước."
+          warn "Không tự git reset rollback vì migration có thể đã chạy; cần đánh giá rollback trước."
         fi
         exit $rc' ERR
 
-  git -C "$project_path" merge --ff-only "origin/$branch"
+  if [[ -n "$dirty" ]]; then
+    echo "[UPDATE] Discard local tracked changes; reset --hard origin/$branch"
+  else
+    echo "[UPDATE] Sync source exactly to origin/$branch"
+  fi
+  git -C "$project_path" reset --hard "origin/$branch"
+
   site_update_deploy "$name" "$project_path" "$strategy" "$timeout"
-  site_update_sync_git_public_storage "$name" "$project_path" "$strategy" "$old_commit" "$new_commit"
+  if [[ "$old_commit" != "$new_commit" ]]; then
+    site_update_sync_git_public_storage "$name" "$project_path" "$strategy" "$old_commit" "$new_commit"
+  fi
 
   local deployed_commit
   deployed_commit="$(git -C "$project_path" rev-parse HEAD)"
