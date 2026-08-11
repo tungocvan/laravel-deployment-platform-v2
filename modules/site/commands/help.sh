@@ -15,7 +15,7 @@ COMMANDS
   production-seed <site>
   change-domain <site> --domain=<new-domain> [--dry-run] [--yes] [--no-ssl]
   repair-ssl <site>
-  env <site> <get|set|backup|refresh> ...
+  env <site> <status|get|set|backup|restore|refresh|validate> ...
   storage <site> <status|repair|list|put> ...
   duplicate --from=... --name=... --domain=... [options]
 
@@ -30,13 +30,20 @@ PRODUCTION SEED
   sau đó chạy permission:cache-reset. Nếu seeder không tồn tại thì bỏ qua an toàn.
 
 ENVIRONMENT
+  env <site> status
   env <site> get <KEY>
-  env <site> set <KEY> <VALUE> [--no-refresh]
+  env <site> set <KEY> <VALUE>
   env <site> backup
+  env <site> restore [latest|/managed/backup/path]
+  env <site> validate
   env <site> refresh
 
-  Set luôn backup .env trước khi ghi. Mặc định refresh app/queue/scheduler/socket,
-  optimize:clear và config:cache. Không có command in toàn bộ .env để tránh lộ secret.
+  Production-safe contract:
+  - .env luôn được giữ root:www-data mode 0660 để PHP-FPM www-data có thể đọc/ghi.
+  - Set luôn backup trước, atomic replace, optimize:clear, validate Laravel + web health.
+  - Nếu validation fail, Platform tự restore backup và clear cache lại.
+  - Refresh chỉ clear Laravel cache + validate; KHÔNG recreate/restart Docker services.
+  - Không có command dump toàn bộ .env để tránh vô tình lộ secret.
 
 STORAGE
   storage <site> status
@@ -85,7 +92,9 @@ RECOMMENDED
   site update <site> --dry-run
   site update <site>
   site production-seed <site>
+  site env <site> status
   site env <site> backup
+  site env <site> validate
   site env <site> get APP_URL
   site storage <site> status
   site change-domain <site> --domain=<new-domain> --dry-run
