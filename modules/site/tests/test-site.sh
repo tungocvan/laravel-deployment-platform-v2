@@ -22,7 +22,7 @@ done
 for fn in site_create_resolve_strategy site_create_validate_laravel site_create_repository_validate_contract site_create_repository_prepare site_create_repository_finalize site_create_repository_health site_create_repository_cleanup site_create_domain_gate site_create; do
   grep -q "^${fn}()" "$CREATE"
 done
-for fn in site_update_assert_clean site_update_record_commit site_update_deploy site_update; do
+for fn in site_update_local_changes site_update_record_commit site_update_deploy site_update; do
   grep -q "^${fn}()" "$UPDATE"
 done
 for fn in site_domain_ipv4_local site_domain_ipv6_local site_domain_dns_ipv4 site_domain_dns_ipv6 site_domain_all_in_set site_domain_preflight; do
@@ -68,12 +68,18 @@ if grep -q 'create-seed-policy.sh' "$UPDATE_CMD"; then
 fi
 grep -q 'site_create_repository_finalize' "$UPDATE"
 grep -q 'deploy_run' "$UPDATE"
-grep -q 'status --porcelain' "$UPDATE"
+grep -q 'status --porcelain --untracked-files=no' "$UPDATE"
 grep -q 'merge-base --is-ancestor' "$UPDATE"
-grep -q 'merge --ff-only' "$UPDATE"
+grep -q 'reset --hard "origin/\$branch"' "$UPDATE"
+grep -q 'GitHub origin/\$branch là source of truth' "$UPDATE"
+grep -q 'Local tracked changes sẽ bị loại bỏ' "$UPDATE"
 grep -q 'previous_commit' "$UPDATE"
 grep -q 'last_updated_at' "$UPDATE"
-grep -q 'Không tự git reset' "$UPDATE"
+grep -q 'Không tự git reset rollback' "$UPDATE"
+if grep -q 'merge --ff-only' "$UPDATE"; then
+  echo "[ERROR] Managed production update phải reset chính xác về origin/branch, không merge local changes."
+  exit 1
+fi
 
 # Normal deploy must remain seed-free.
 if grep -q 'db:seed' "$ROOT/modules/deploy/lib/deploy.sh"; then
