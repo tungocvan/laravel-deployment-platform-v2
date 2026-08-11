@@ -20,6 +20,35 @@ site_env_validate_key() {
   [[ "${1:-}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || die "Tên biến .env không hợp lệ: ${1:-}"
 }
 
+# Generic ENV editor is for Laravel/application runtime values only. Keys that
+# control Docker topology, credentials of managed infrastructure, images, ports
+# or Compose commands must go through a dedicated deploy/domain/runtime flow.
+site_env_key_class() {
+  local key="$1"
+  case "$key" in
+    COMPOSE_PROJECT_NAME|HTTP_PORT|SOCKET_PORT|PHP_VERSION|NODE_VERSION|INSTALL_LIBREOFFICE|\
+    MARIADB_VERSION|REDIS_VERSION|MARIADB_ROOT_PASSWORD|REDIS_PASSWORD|\
+    DB_CONNECTION|DB_HOST|DB_PORT|DB_DATABASE|DB_USERNAME|DB_PASSWORD|\
+    APP_MEMORY_LIMIT|APP_CPU_LIMIT|WEB_MEMORY_LIMIT|WEB_CPU_LIMIT|\
+    DB_MEMORY_LIMIT|DB_CPU_LIMIT|REDIS_MEMORY_LIMIT|REDIS_CPU_LIMIT|\
+    QUEUE_MEMORY_LIMIT|QUEUE_CPU_LIMIT|SCHEDULER_MEMORY_LIMIT|SCHEDULER_CPU_LIMIT|\
+    SOCKET_MEMORY_LIMIT|SOCKET_CPU_LIMIT|\
+    QUEUE_NAMES|QUEUE_SLEEP|QUEUE_TRIES|QUEUE_TIMEOUT|QUEUE_MAX_TIME|\
+    NODEJS_SERVER_PORT)
+      echo "docker"
+      ;;
+    *)
+      echo "application"
+      ;;
+  esac
+}
+
+site_env_require_application_key() {
+  local key="$1" class
+  class="$(site_env_key_class "$key")"
+  [[ "$class" == "application" ]] || die "ENV key $key thuộc Docker/managed infrastructure; không được thay bằng 'site env set'. Hãy dùng flow deploy/runtime chuyên dụng."
+}
+
 site_env_apply_permissions() {
   local file="$1"
   [[ -f "$file" ]] || die "ENV file không tồn tại: $file"
@@ -55,7 +84,9 @@ site_env_status() {
 $p="/var/www/html/.env";
 echo "exists=".(file_exists($p)?"true":"false").PHP_EOL;
 echo "readable=".(is_readable($p)?"true":"false").PHP_EOL;
-echo "writable=".(is_writable($p)?"true":"false").PHP_EOL;
+$h=@fopen($p,"r+");
+echo "rplus=".($h===false?"false":"true").PHP_EOL;
+if ($h!==false) fclose($h);
 '
 }
 
@@ -131,14 +162,30 @@ PY
 site_env_write_value() {
   local file="$1" env_key="$2" env_value="$3"
   python3 - "$file" "$env_key" "$env_value" <<'PY'
-import fcntl, os, sys
+import fcntl, os, re, sys
 path,key,value=sys.argv[1:]
+
+def dotenv_value(v: str) -> str:
+    if v == '':
+        return '""'
+    # Keep simple values readable; quote everything that dotenv may interpret.
+    if re.fullmatch(r'[A-Za-z0-9_./:@%+,-]+', v):
+        return v
+    escaped=(v.replace('\\','\\\\')
+              .replace('"','\\"')
+              .replace('$','\\$')
+              .replace('`','\\`')
+              .replace('\r','\\r')
+              .replace('\n','\\n'))
+    return f'"{escaped}"'
+
+serialized=dotenv_value(value)
 with open(path,'r+',encoding='utf-8',newline='') as f:
     fcntl.flock(f.fileno(), fcntl.LOCK_EX)
     try:
         f.seek(0)
         lines=f.readlines()
-        replacement=f'{key}={value}\n'
+        replacement=f'{key}={serialized}\n'
         out=[]
         replaced=False
         for line in lines:
@@ -176,17 +223,27 @@ site_env_validate() {
   [[ "$owner" == "root" && "$group" == "www-data" && "$mode" == "660" ]] \
     || die ".env permission không đúng; yêu cầu root:www-data 660, hiện tại $owner:$group $mode"
 
-  echo "[ENV] Validate actual write as www-data"
+  echo "[ENV] Validate in-place write path as www-data"
   site_env_compose exec -T --user www-data app php -r '
 $p="/var/www/html/.env";
-if (!file_exists($p) || !is_readable($p) || !is_writable($p)) { exit(20); }
-$data=file_get_contents($p);
-if ($data === false) { exit(21); }
-$written=@file_put_contents($p,$data,LOCK_EX);
-if ($written === false || $written !== strlen($data)) { exit(22); }
+$h=@fopen($p,"r+");
+if ($h===false) exit(20);
+try {
+  if (!flock($h, LOCK_EX)) exit(21);
+  $first=fread($h,1);
+  if ($first!=="" && $first!==false) {
+    rewind($h);
+    $w=fwrite($h,$first);
+    if ($w!==1) exit(22);
+    fflush($h);
+  }
+} finally {
+  @flock($h, LOCK_UN);
+  fclose($h);
+}
 '
 
-  echo "[ENV] Validate Laravel boot"
+  echo "[ENV] Validate Laravel boot / dotenv parse"
   site_env_compose exec -T app env CACHE_STORE=array CACHE_DRIVER=array php artisan about >/dev/null
 
   echo "[ENV] Validate web health"
@@ -233,12 +290,14 @@ site_env_set() {
   local key="$1" env_key="$2" env_value="$3"
   require_root
   site_env_validate_key "$env_key"
+  site_env_require_application_key "$env_key"
   site_env_context "$key"
 
   local backup env_file="$SITE_ENV_PATH/.env" rc=0 inode_before inode_after
   backup="$(site_env_backup "$key")"
   inode_before="$(stat -c '%i' "$env_file")"
 
+  echo "[ENV] Class  : application"
   echo "[ENV] Backup : $backup"
   echo "[ENV] Update : $env_key"
   site_env_write_value "$env_file" "$env_key" "$env_value"
@@ -246,8 +305,8 @@ site_env_set() {
   inode_after="$(stat -c '%i' "$env_file")"
   [[ "$inode_before" == "$inode_after" ]] || die "ENV inode đã thay đổi ngoài ý muốn ($inode_before -> $inode_after)."
 
-  # ENV management never recreates/restarts Docker services. It preserves the
-  # bind-mounted .env inode, clears Laravel caches and validates the live runtime.
+  # Application ENV never recreates/restarts Docker services. Laravel app reads
+  # the bind-mounted file; Docker/topology keys are rejected above.
   site_env_compose exec -T app env CACHE_STORE=array CACHE_DRIVER=array php artisan optimize:clear || rc=$?
   if [[ "$rc" -eq 0 ]]; then
     site_env_validate "$key" || rc=$?
