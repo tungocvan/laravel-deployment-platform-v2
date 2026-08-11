@@ -15,6 +15,8 @@ COMMANDS
   production-seed <site>
   change-domain <site> --domain=<new-domain> [--dry-run] [--yes] [--no-ssl]
   repair-ssl <site>
+  env <site> <get|set|backup|refresh> ...
+  storage <site> <status|repair|list|put> ...
   duplicate --from=... --name=... --domain=... [options]
 
 UPDATE
@@ -26,6 +28,25 @@ PRODUCTION SEED
   Đồng bộ metadata production-safe được allow-list. Hiện tại gồm:
   Modules\Role\database\seeders\RolesAndPermissionsSeeder
   sau đó chạy permission:cache-reset. Nếu seeder không tồn tại thì bỏ qua an toàn.
+
+ENVIRONMENT
+  env <site> get <KEY>
+  env <site> set <KEY> <VALUE> [--no-refresh]
+  env <site> backup
+  env <site> refresh
+
+  Set luôn backup .env trước khi ghi. Mặc định refresh app/queue/scheduler/socket,
+  optimize:clear và config:cache. Không có command in toàn bộ .env để tránh lộ secret.
+
+STORAGE
+  storage <site> status
+  storage <site> repair
+  storage <site> list [relative-path]
+  storage <site> put --source=/path/on-vps --path=app/public/file
+
+  Storage operations làm việc với persistent volume. Repair chỉ sửa directory,
+  permission và public/storage link; không xóa runtime data. Put copy một file từ VPS
+  vào storage persistent và cấp quyền www-data.
 
 CHANGE DOMAIN
   Đổi domain của managed site nhưng giữ nguyên code, database, storage, path và ports.
@@ -64,6 +85,9 @@ RECOMMENDED
   site update <site> --dry-run
   site update <site>
   site production-seed <site>
+  site env <site> backup
+  site env <site> get APP_URL
+  site storage <site> status
   site change-domain <site> --domain=<new-domain> --dry-run
   site repair-ssl <site>
   site archive <site>
