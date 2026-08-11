@@ -24,6 +24,8 @@ ui_menu_sites() {
  14) Danh sách archive
  15) Purge
  16) Repair SSL
+ 17) Environment (.env)
+ 18) Storage
 
   0) Back
 
@@ -47,6 +49,8 @@ EOF
       14) ui_run site archives; ui_pause ;;
       15) ui_flow_purge ;;
       16) ui_flow_repair_ssl ;;
+      17) ui_flow_env ;;
+      18) ui_flow_storage ;;
       0) return 0 ;;
     esac
   done
@@ -193,6 +197,69 @@ ui_flow_repair_ssl() {
   ui_section "REPAIR SSL"
   ui_confirm_execute "REPAIR SSL: $site" && ui_run_sudo site repair-ssl "$site"
   ui_pause
+}
+
+ui_flow_env() {
+  local site choice key value
+  site="$(ui_select_site "Chọn site cần quản lý .env")" || return 0
+  while true; do
+    ui_section "ENVIRONMENT: $site"
+    cat <<'EOF'
+  1) Get key
+  2) Set key + refresh runtime
+  3) Backup .env
+  4) Refresh runtime
+  0) Back
+EOF
+    read -r -p "Chọn: " choice
+    case "$choice" in
+      1)
+        key="$(ui_prompt "ENV key")"; [[ -n "$key" ]] || continue
+        ui_run_sudo site env "$site" get "$key"; ui_pause
+        ;;
+      2)
+        key="$(ui_prompt "ENV key")"; [[ -n "$key" ]] || continue
+        value="$(ui_prompt "ENV value")"
+        ui_confirm_execute "SET ENV: $site / $key" && ui_run_sudo site env "$site" set "$key" "$value"
+        ui_pause
+        ;;
+      3) ui_run_sudo site env "$site" backup; ui_pause ;;
+      4) ui_confirm_execute "REFRESH ENV RUNTIME: $site" && ui_run_sudo site env "$site" refresh; ui_pause ;;
+      0) return 0 ;;
+    esac
+  done
+}
+
+ui_flow_storage() {
+  local site choice relative source
+  site="$(ui_select_site "Chọn site cần quản lý storage")" || return 0
+  while true; do
+    ui_section "STORAGE: $site"
+    cat <<'EOF'
+  1) Status
+  2) Repair permissions/link
+  3) List path
+  4) Put file từ VPS vào persistent storage
+  0) Back
+EOF
+    read -r -p "Chọn: " choice
+    case "$choice" in
+      1) ui_run_sudo site storage "$site" status; ui_pause ;;
+      2) ui_confirm_execute "REPAIR STORAGE: $site" && ui_run_sudo site storage "$site" repair; ui_pause ;;
+      3)
+        relative="$(ui_prompt "Path trong storage [app/public]")"; relative="${relative:-app/public}"
+        ui_run_sudo site storage "$site" list "$relative"; ui_pause
+        ;;
+      4)
+        source="$(ui_prompt "Source file trên VPS, ví dụ /tmp/logo.png")"
+        relative="$(ui_prompt "Destination trong storage, ví dụ app/public/logo.png")"
+        [[ -n "$source" && -n "$relative" ]] || { echo "[ERROR] Source và destination bắt buộc."; ui_pause; continue; }
+        ui_confirm_execute "PUT STORAGE: $source -> storage/$relative" && ui_run_sudo site storage "$site" put "--source=$source" "--path=$relative"
+        ui_pause
+        ;;
+      0) return 0 ;;
+    esac
+  done
 }
 
 ui_flow_duplicate() {
