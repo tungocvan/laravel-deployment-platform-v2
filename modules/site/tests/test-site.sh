@@ -29,7 +29,7 @@ done
 for fn in site_update_local_changes site_update_record_commit site_update_deploy site_update; do
   grep -q "^${fn}()" "$UPDATE"
 done
-for fn in site_env_context site_env_validate_key site_env_apply_permissions site_env_compose site_env_status site_env_get site_env_backup site_env_latest_backup site_env_write_content_in_place site_env_write_value site_env_validate site_env_refresh site_env_restore_file site_env_set site_env_command; do
+for fn in site_env_context site_env_validate_key site_env_key_class site_env_require_application_key site_env_apply_permissions site_env_compose site_env_status site_env_get site_env_backup site_env_latest_backup site_env_write_content_in_place site_env_write_value site_env_validate site_env_refresh site_env_restore_file site_env_set site_env_command; do
   grep -q "^${fn}()" "$ENV_LIB"
 done
 for fn in site_storage_context site_storage_compose site_storage_status site_storage_repair site_storage_list site_storage_put site_storage_command; do
@@ -87,12 +87,16 @@ grep -q 'chown root:www-data' "$ENV_LIB"
 grep -q 'chmod 660' "$ENV_LIB"
 grep -q '.platform-backups/env' "$ENV_LIB"
 grep -q 'site_env_write_content_in_place' "$ENV_LIB"
+grep -q 'site_env_key_class' "$ENV_LIB"
+grep -q 'thuộc Docker/managed infrastructure' "$ENV_LIB"
+grep -q 'dotenv_value' "$ENV_LIB"
 grep -q 'fcntl.LOCK_EX' "$ENV_LIB"
 grep -q 'f.truncate()' "$ENV_LIB"
 grep -q 'os.fsync' "$ENV_LIB"
 grep -q 'inode_before' "$ENV_LIB"
-grep -q 'Validate actual write as www-data' "$ENV_LIB"
-grep -q 'file_put_contents' "$ENV_LIB"
+grep -q 'Validate in-place write path as www-data' "$ENV_LIB"
+grep -q 'fopen(\$p,"r+")' "$ENV_LIB"
+grep -q 'Validate Laravel boot / dotenv parse' "$ENV_LIB"
 grep -q 'optimize:clear' "$ENV_LIB"
 grep -q 'php artisan about' "$ENV_LIB"
 grep -q 'http://127.0.0.1:8080/up' "$ENV_LIB"
@@ -103,7 +107,7 @@ if grep -Eq 'os\.replace|os\.rename|mv[[:space:]].*\.env|mv[[:space:]].*env_file
   exit 1
 fi
 if grep -Eq 'up[[:space:]]+-d|--force-recreate|compose.*down|restart[[:space:]]+(app|web|socket|queue|scheduler|db|redis)' "$ENV_LIB"; then
-  echo "[ERROR] Env management không được thay đổi Docker container lifecycle/topology."
+  echo "[ERROR] Application ENV management không được thay đổi Docker container lifecycle/topology."
   exit 1
 fi
 if grep -Eq 'cat[[:space:]]+.*\.env|print.*\.env' "$ENV_LIB"; then
@@ -111,7 +115,8 @@ if grep -Eq 'cat[[:space:]]+.*\.env|print.*\.env' "$ENV_LIB"; then
   exit 1
 fi
 
-# Verify the in-place writer really preserves inode and changes content.
+# Verify the in-place writer preserves inode, serializes dotenv safely and
+# classifies infrastructure keys away from the generic ENV editor.
 TEST_ENV_LIB="$ENV_LIB" TEST_ENV_TMP="$(mktemp -d)" bash -c '
   set -Eeuo pipefail
   require_root(){ :; }
@@ -121,9 +126,20 @@ TEST_ENV_LIB="$ENV_LIB" TEST_ENV_TMP="$(mktemp -d)" bash -c '
   printf "%s\n" "APP_NAME=Old" "APP_URL=https://old.test" > "$envfile"
   inode_before="$(stat -c "%i" "$envfile")"
   site_env_write_value "$envfile" APP_URL https://new.test
+  site_env_write_value "$envfile" APP_NAME "APP Tu Ngoc Van"
+  site_env_write_value "$envfile" MAIL_FROM_NAME "APP # Mail"
   inode_after="$(stat -c "%i" "$envfile")"
   [[ "$inode_before" == "$inode_after" ]]
   grep -q "^APP_URL=https://new.test$" "$envfile"
+  grep -q '^APP_NAME="APP Tu Ngoc Van"$' "$envfile"
+  grep -q '^MAIL_FROM_NAME="APP # Mail"$' "$envfile"
+  [[ "$(site_env_key_class APP_NAME)" == "application" ]]
+  [[ "$(site_env_key_class DB_PASSWORD)" == "docker" ]]
+  [[ "$(site_env_key_class HTTP_PORT)" == "docker" ]]
+  if site_env_require_application_key DB_PASSWORD >/dev/null 2>&1; then
+    echo "[ERROR] DB_PASSWORD phải bị chặn khỏi generic env set."
+    exit 1
+  fi
   backup="$TEST_ENV_TMP/backup"
   printf "%s\n" "APP_NAME=Restored" > "$backup"
   site_env_write_content_in_place "$envfile" "$backup"
