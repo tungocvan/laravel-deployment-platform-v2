@@ -200,31 +200,43 @@ ui_flow_repair_ssl() {
 }
 
 ui_flow_env() {
-  local site choice key value
+  local site choice key value backup
   site="$(ui_select_site "Chọn site cần quản lý .env")" || return 0
   while true; do
     ui_section "ENVIRONMENT: $site"
     cat <<'EOF'
-  1) Get key
-  2) Set key + refresh runtime
-  3) Backup .env
-  4) Refresh runtime
+  1) Status / permission check
+  2) Get key
+  3) Set key (safe + auto rollback)
+  4) Backup .env
+  5) Restore latest backup
+  6) Validate
+  7) Refresh Laravel cache only
   0) Back
 EOF
     read -r -p "Chọn: " choice
     case "$choice" in
-      1)
+      1) ui_run_sudo site env "$site" status; ui_pause ;;
+      2)
         key="$(ui_prompt "ENV key")"; [[ -n "$key" ]] || continue
         ui_run_sudo site env "$site" get "$key"; ui_pause
         ;;
-      2)
+      3)
         key="$(ui_prompt "ENV key")"; [[ -n "$key" ]] || continue
         value="$(ui_prompt "ENV value")"
-        ui_confirm_execute "SET ENV: $site / $key" && ui_run_sudo site env "$site" set "$key" "$value"
+        ui_confirm_execute "SET ENV SAFE: $site / $key" && ui_run_sudo site env "$site" set "$key" "$value"
         ui_pause
         ;;
-      3) ui_run_sudo site env "$site" backup; ui_pause ;;
-      4) ui_confirm_execute "REFRESH ENV RUNTIME: $site" && ui_run_sudo site env "$site" refresh; ui_pause ;;
+      4) ui_run_sudo site env "$site" backup; ui_pause ;;
+      5)
+        ui_confirm_execute "RESTORE LATEST ENV BACKUP: $site" && ui_run_sudo site env "$site" restore latest
+        ui_pause
+        ;;
+      6) ui_run_sudo site env "$site" validate; ui_pause ;;
+      7)
+        ui_confirm_execute "REFRESH LARAVEL CACHE ONLY: $site" && ui_run_sudo site env "$site" refresh
+        ui_pause
+        ;;
       0) return 0 ;;
     esac
   done
