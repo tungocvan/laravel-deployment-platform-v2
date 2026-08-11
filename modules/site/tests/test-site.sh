@@ -5,17 +5,21 @@ SITE="$ROOT/modules/site/lib/site.sh"
 PROV="$ROOT/modules/site/lib/provision.sh"
 CREATE="$ROOT/modules/site/lib/create-strategy.sh"
 UPDATE="$ROOT/modules/site/lib/update.sh"
+ENV_LIB="$ROOT/modules/site/lib/env.sh"
+STORAGE_LIB="$ROOT/modules/site/lib/storage.sh"
 DOMAIN="$ROOT/modules/site/lib/domain-preflight.sh"
 SSL_POLICY="$ROOT/modules/site/lib/create-ssl-policy.sh"
 SEED_POLICY="$ROOT/modules/site/lib/create-seed-policy.sh"
 DOMAIN_CMD="$ROOT/modules/site/commands/domain-preflight.sh"
 CREATE_CMD="$ROOT/modules/site/commands/create.sh"
 UPDATE_CMD="$ROOT/modules/site/commands/update.sh"
+ENV_CMD="$ROOT/modules/site/commands/env.sh"
+STORAGE_CMD="$ROOT/modules/site/commands/storage.sh"
 MENU="$ROOT/modules/ui/menus/sites.sh"
 INVENTORY="$ROOT/modules/inventory/lib/inventory.sh"
 COMMON="$ROOT/core/lib/common.sh"
 
-[[ -f "$PROV" && -f "$CREATE" && -f "$UPDATE" && -f "$DOMAIN" && -f "$SSL_POLICY" && -f "$SEED_POLICY" && -f "$DOMAIN_CMD" && -f "$UPDATE_CMD" && -f "$COMMON" ]]
+[[ -f "$PROV" && -f "$CREATE" && -f "$UPDATE" && -f "$ENV_LIB" && -f "$STORAGE_LIB" && -f "$DOMAIN" && -f "$SSL_POLICY" && -f "$SEED_POLICY" && -f "$DOMAIN_CMD" && -f "$UPDATE_CMD" && -f "$ENV_CMD" && -f "$STORAGE_CMD" && -f "$COMMON" ]]
 for fn in site_provision_configure_target site_provision_prepare_runtime site_provision_finalize_runtime site_provision_health site_provision_commit_inventory site_provision_cleanup_new_target; do
   grep -q "^${fn}()" "$PROV"
 done
@@ -24,6 +28,12 @@ for fn in site_create_resolve_strategy site_create_validate_laravel site_create_
 done
 for fn in site_update_local_changes site_update_record_commit site_update_deploy site_update; do
   grep -q "^${fn}()" "$UPDATE"
+done
+for fn in site_env_context site_env_get site_env_backup site_env_write_value site_env_refresh site_env_set site_env_command; do
+  grep -q "^${fn}()" "$ENV_LIB"
+done
+for fn in site_storage_context site_storage_compose site_storage_status site_storage_repair site_storage_list site_storage_put site_storage_command; do
+  grep -q "^${fn}()" "$STORAGE_LIB"
 done
 for fn in site_domain_ipv4_local site_domain_ipv6_local site_domain_dns_ipv4 site_domain_dns_ipv6 site_domain_all_in_set site_domain_preflight; do
   grep -q "^${fn}()" "$DOMAIN"
@@ -42,6 +52,10 @@ grep -q 'site_create_record_ssl_status' "$CREATE_CMD"
 grep -q 'site_domain_preflight' "$DOMAIN_CMD"
 grep -q 'site/lib/update.sh' "$UPDATE_CMD"
 grep -q 'site_update "\$@"' "$UPDATE_CMD"
+grep -q 'site/lib/env.sh' "$ENV_CMD"
+grep -q 'site_env_command "\$@"' "$ENV_CMD"
+grep -q 'site/lib/storage.sh' "$STORAGE_CMD"
+grep -q 'site_storage_command "\$@"' "$STORAGE_CMD"
 grep -q 'inventory_set_runtime_strategy' "$CREATE"
 grep -q '^inventory_set_runtime_strategy()' "$INVENTORY"
 grep -q 'Repository Compose service app không build từ Dockerfile' "$CREATE"
@@ -53,6 +67,12 @@ grep -q 'Làm mới config' "$MENU"
 grep -q 'Tạo site KHÔNG SSL' "$MENU"
 grep -q '4) Create site' "$MENU"
 grep -q '5) Update site from GitHub' "$MENU"
+grep -q '17) Environment (.env)' "$MENU"
+grep -q '18) Storage' "$MENU"
+grep -q 'ui_flow_env' "$MENU"
+grep -q 'ui_flow_storage' "$MENU"
+grep -q 'site env "\$site"' "$MENU"
+grep -q 'site storage "\$site"' "$MENU"
 grep -q 'ui_flow_update' "$MENU"
 grep -q 'site update "\$site" --dry-run' "$MENU"
 grep -q 'Docker theo repository' "$MENU"
@@ -60,8 +80,24 @@ grep -q 'Auto detect' "$MENU"
 grep -q 'ui_flow_create' "$MENU"
 grep -q "grep -vi '^::ffff:'" "$DOMAIN"
 
+# Environment/storage safety contracts.
+grep -q 'chmod 600' "$ENV_LIB"
+grep -q '.platform-backups/env' "$ENV_LIB"
+grep -q 'os.replace(tmp,path)' "$ENV_LIB"
+grep -q 'up -d --force-recreate app queue scheduler socket' "$ENV_LIB"
+if grep -Eq 'cat[[:space:]]+.*\.env|print.*\.env' "$ENV_LIB"; then
+  echo "[ERROR] Env management không được có command dump toàn bộ .env."
+  exit 1
+fi
+grep -q 'public/storage' "$STORAGE_LIB"
+grep -q 'chown -R www-data:www-data storage bootstrap/cache' "$STORAGE_LIB"
+grep -q 'Storage path không được chứa' "$STORAGE_LIB"
+if grep -Eq 'rm -rf[[:space:]]+storage|docker compose.*down -v' "$STORAGE_LIB"; then
+  echo "[ERROR] Storage management không được phá hủy persistent storage."
+  exit 1
+fi
+
 # Update contract: create-only seed policy must not be sourced by update command.
-# Update reuses the base create-strategy finalize, which contains migrate + optimize only.
 if grep -q 'create-seed-policy.sh' "$UPDATE_CMD"; then
   echo "[ERROR] Site update không được source create seed policy."
   exit 1
@@ -194,4 +230,4 @@ set -e
   exit 1
 }
 
-echo "[OK] Site Provisioning + Create Strategy + Domain Preflight + Seed + SSL Policy + Update tests"
+echo "[OK] Site Provisioning + Create Strategy + Domain Preflight + Seed + SSL Policy + Update + Env + Storage tests"
