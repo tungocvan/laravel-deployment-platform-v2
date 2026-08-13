@@ -10,6 +10,7 @@ source "$PLATFORM_HOME/modules/site/lib/provision.sh"
 source "$PLATFORM_HOME/modules/site/lib/site.sh"
 source "$PLATFORM_HOME/modules/site/lib/domain-preflight.sh"
 source "$PLATFORM_HOME/modules/site/lib/create-strategy.sh"
+source "$PLATFORM_HOME/modules/site/lib/production-seed.sh"
 source "$PLATFORM_HOME/modules/site/lib/create-seed-policy.sh"
 source "$PLATFORM_HOME/modules/site/lib/create-ssl-policy.sh"
 
