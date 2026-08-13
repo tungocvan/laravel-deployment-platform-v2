@@ -22,4 +22,9 @@ COMMANDS
   remote <path>
   branch <path>
   commit <path>
+
+  update <site> [--dry-run] [--yes]
+      Cập nhật code site từ origin bằng fast-forward only.
+      Từ chối working tree bẩn, detached HEAD, local-ahead hoặc diverged branch.
+      Update code không tự chạy Deploy; sau đó dùng `platform deploy run <site>` khi cần.
 EOF
