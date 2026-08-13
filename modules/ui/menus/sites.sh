@@ -20,6 +20,7 @@ ui_menu_sites() {
  10) Restore archived site
  11) Danh sách archive
  12) Purge
+ 13) Purge Force (active site)
 
   0) Back
 
@@ -55,6 +56,7 @@ EOF
       10) ui_flow_restore_archive ;;
       11) ui_run site archives; ui_pause ;;
       12) ui_flow_purge ;;
+      13) ui_flow_purge_force ;;
       0) return 0 ;;
     esac
   done
@@ -110,7 +112,7 @@ ui_flow_purge() {
   ui_run site archives
   echo
   local site
-  site="$(ui_prompt "Tên site/archive cần PURGE")"
+  site="$(ui_prompt "Tên archive cần PURGE")"
   [[ -n "$site" ]] || return 0
 
   ui_section "PURGE DRY-RUN"
@@ -123,5 +125,23 @@ ui_flow_purge() {
   [[ "$typed" == "$site" ]] || { echo "[INFO] Đã hủy."; ui_pause; return; }
 
   ui_run_sudo site purge "$site" --yes
+  ui_pause
+}
+
+ui_flow_purge_force() {
+  local site
+  site="$(ui_select_site "Chọn ACTIVE SITE cần PURGE FORCE")" || return 0
+
+  ui_section "PURGE FORCE DRY-RUN"
+  ui_run_sudo site purge "$site" --force-active --dry-run || { ui_pause; return; }
+
+  echo
+  echo "CẢNH BÁO NGHIÊM TRỌNG: PURGE FORCE xoá trực tiếp active site, KHÔNG cần Archive."
+  echo "Backup safety vẫn được giữ và purge history vẫn được ghi."
+  local typed
+  read -r -p "Nhập chính xác '$site' để PURGE FORCE: " typed
+  [[ "$typed" == "$site" ]] || { echo "[INFO] Đã hủy."; ui_pause; return; }
+
+  ui_run_sudo site purge "$site" --force-active --yes
   ui_pause
 }
