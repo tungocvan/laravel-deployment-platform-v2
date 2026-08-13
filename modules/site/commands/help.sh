@@ -6,11 +6,22 @@ USAGE
   platform site <command> [options]
 
 COMMANDS
+  create --name=... --domain=... --repo=... [options]
   list
   show <name|domain|path>
   exec <site> <command...>
   doctor <site>
   duplicate --from=... --name=... --domain=... [options]
+
+CREATE OPTIONS
+  --branch=<branch>       default: main
+  --path=<absolute-path>  default: /opt/projects/<site>
+  --http-port=<port|auto>
+  --socket-port=<port|auto>
+  --no-ssl
+  --no-build
+  --dry-run
+  --yes
 
 LIFECYCLE
   disable <site> [--yes]
@@ -40,6 +51,10 @@ PURGE OPTIONS
   --keep-volumes
   --keep-ssl
   --no-backup      # dangerous, requires --yes
+
+EXAMPLES
+  site create --name=demo --domain=demo.example.com --repo=git@github.com:org/app.git --dry-run
+  site create --name=demo --domain=demo.example.com --repo=git@github.com:org/app.git --yes
 
 RECOMMENDED
   site archive <site>
