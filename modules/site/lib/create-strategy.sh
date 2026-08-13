@@ -192,7 +192,7 @@ site_create() {
   local name="" domain="" repo="" branch="main" project_path=""
   local http_port="auto" socket_port="auto" docker_strategy="platform"
   local dockerfile="Dockerfile" compose_file="compose.yaml" ssl=1 dry_run=0 auto_yes=0 timeout=120
-  local replace_domain_config=0 resolved_strategy="" db_name="" committed=0 nginx_created=0
+  local replace_domain_config=0 resolved_strategy="" db_name="" committed=0 nginx_created=0 keep_failed=0
 
   for arg in "$@"; do
     case "$arg" in
@@ -208,6 +208,7 @@ site_create() {
       --compose-file=*) compose_file="${arg#*=}" ;;
       --timeout=*) timeout="${arg#*=}" ;;
       --replace-domain-config) replace_domain_config=1 ;;
+      --keep-failed) keep_failed=1 ;;
       --no-ssl) ssl=0 ;;
       --dry-run) dry_run=1 ;;
       --yes) auto_yes=1 ;;
@@ -241,6 +242,7 @@ site_create() {
   echo "Dockerfile  : $dockerfile"
   echo "Compose     : $compose_file"
   echo "SSL         : $ssl"
+  echo "Keep failed : $keep_failed"
   echo "Replace Nginx managed config: $replace_domain_config"
 
   if [[ "$dry_run" -eq 1 ]]; then
@@ -249,13 +251,19 @@ site_create() {
     else
       echo "[DRY-RUN] Runtime strategy: $docker_strategy"
     fi
+    [[ "$keep_failed" -eq 1 ]] && echo "[DRY-RUN] Debug mode: nếu create thật thất bại sẽ giữ project/container để inspect."
     echo "[DRY-RUN] Không clone/build/start hoặc thay đổi Inventory."
     return 0
   fi
   [[ "$auto_yes" -eq 1 ]] || site_confirm "Create Laravel site?" || die "Đã hủy."
 
   trap 'rc=$?; if [[ $rc -ne 0 && $committed -eq 0 ]]; then
-          if [[ "$resolved_strategy" == "repository" ]]; then
+          if [[ "$keep_failed" -eq 1 ]]; then
+            echo "[DEBUG] Create thất bại; --keep-failed đang bật nên KHÔNG cleanup runtime." >&2
+            echo "[DEBUG] Project giữ lại: $project_path" >&2
+            echo "[DEBUG] Strategy: ${resolved_strategy:-unresolved}" >&2
+            echo "[DEBUG] Inventory chưa commit." >&2
+          elif [[ "$resolved_strategy" == "repository" ]]; then
             site_create_repository_cleanup "$project_path" "$compose_file"
             [[ "$nginx_created" -eq 1 ]] && { platform_nginx_remove "$domain" >/dev/null 2>&1 || true; platform_ssl_remove "$domain" >/dev/null 2>&1 || true; }
             [[ -d "$project_path" ]] && rm -rf "$project_path" || true
