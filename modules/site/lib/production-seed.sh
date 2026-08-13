@@ -14,7 +14,7 @@ site_production_seed_repository_path() {
 
   echo "[PRODUCTION SEED] Sync roles & permissions"
   site_create_repository_compose "$project_path" "$compose_file" exec -T app \
-    php artisan db:seed --class='Modules\\Role\\database\\seeders\\RolesAndPermissionsSeeder' --force
+    php artisan db:seed --class='Modules\Role\database\seeders\RolesAndPermissionsSeeder' --force
 
   echo "[PRODUCTION SEED] Reset Spatie permission cache"
   site_create_repository_compose "$project_path" "$compose_file" exec -T app \
@@ -31,7 +31,7 @@ site_production_seed_platform_path() {
 
   echo "[PRODUCTION SEED] Sync roles & permissions"
   deploy_compose "$project_path" exec -T app \
-    php artisan db:seed --class='Modules\\Role\\database\\seeders\\RolesAndPermissionsSeeder' --force
+    php artisan db:seed --class='Modules\Role\database\seeders\RolesAndPermissionsSeeder' --force
 
   echo "[PRODUCTION SEED] Reset Spatie permission cache"
   deploy_compose "$project_path" exec -T app \
