@@ -2,6 +2,8 @@
 set -Eeuo pipefail
 ROOT="${PLATFORM_HOME:-/opt/laravel-deployment-platform-v2}"
 F="$ROOT/modules/purge/lib/purge.sh"
+POLICY="$ROOT/modules/purge/lib/backup-policy.sh"
+CMD="$ROOT/modules/site/commands/purge.sh"
 UI="$ROOT/modules/ui/menus/sites.sh"
 HELP="$ROOT/modules/site/commands/help.sh"
 
@@ -28,11 +30,23 @@ grep -q 'platform_nginx_backup_file' "$F"
 grep -q 'nginx -t' "$F"
 grep -q 'systemctl reload nginx' "$F"
 
+# Purge backup policy: never start a stopped DB. Skip only when DB/container is
+# genuinely absent; DB probe errors must abort rather than silently skip.
+grep -q '^site_purge_database_backup_state()' "$POLICY"
+grep -q 'skip:container-not-running' "$POLICY"
+grep -q 'skip:database-not-found' "$POLICY"
+grep -q 'PURGE.DB_PROBE_FAILED' "$POLICY"
+grep -q 'backup_create_standard .*--no-database' "$POLICY"
+! grep -q 'compose.*up.*db' "$POLICY"
+grep -q 'modules/purge/lib/backup-policy.sh' "$CMD"
+
 grep -q 'Purge Force (active site)' "$UI"
 grep -q 'ui_flow_purge_force()' "$UI"
 grep -q 'site purge .*--force-active --yes' "$HELP"
 
 bash -n "$F"
+bash -n "$POLICY"
+bash -n "$CMD"
 bash -n "$UI"
 bash -n "$HELP"
-echo "[OK] Site Purge regression + force-active + legacy-nginx"
+echo "[OK] Site Purge regression + force-active + legacy-nginx + db-aware-backup"
