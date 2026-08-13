@@ -42,12 +42,43 @@ Sau khi copy template, Platform chỉ nên inject/rotate các giá trị thuộc
 
 Không hard-code lại toàn bộ Docker runtime contract trong Platform nếu application repository đã định nghĩa nó trong `.env.docker.example`.
 
+## Docker ENV permission contract
+
+Managed Docker site bind-mount `.env` từ host vào app container. Trang quản trị ENV chạy qua PHP-FPM `www-data`, vì vậy host `.env` phải cho runtime group quyền ghi.
+
+Provisioning phải áp dụng:
+
+```text
+Owner : root
+Group : PHP-FPM runtime group
+Mode  : 0660
+```
+
+Runtime GID mặc định là `33` (`www-data` trên Debian/PHP image hiện tại):
+
+```text
+root:33 0660
+```
+
+Có thể override bằng:
+
+```bash
+PLATFORM_APP_GID=<gid>
+```
+
+Không dùng `chmod 777` cho `.env`.
+
+Mục tiêu của policy này là bảo đảm `/admin/system/settings/env` có thể cập nhật bind-mounted `.env` trên Docker VPS mà không cần `chown/chmod` thủ công sau mỗi lần Create Site.
+
 ## Regression rule
 
 Bất kỳ thay đổi nào vào Create/Duplicate/Restore provisioning phải bảo đảm:
 
 ```text
 .env.docker.example > .env.example
+.env owner=root
+.env group=PLATFORM_APP_GID (default 33)
+.env mode=0660
 ```
 
-và phải có regression test kiểm tra priority này.
+và phải có regression test kiểm tra các contract này.
