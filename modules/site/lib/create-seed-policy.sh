@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
 
-# Create-site-only database seed policy.
-# This library is sourced only by `platform site create`, so normal deploy/update
-# continues to run migrate + optimize without executing seeders.
+# Create-site database seed policy.
+# Production create MUST NOT run DatabaseSeeder / `php artisan db:seed` globally.
+# It reuses the same production-safe allow-list as `platform site production-seed`.
 
 site_create_seed_repository() {
   local project_path="$1" compose_file="$2"
-  echo "[CREATE SEED] Laravel db:seed --force"
-  site_create_repository_compose "$project_path" "$compose_file" \
-    exec -T app php artisan db:seed --force
+  echo "[CREATE SEED] Production allow-list"
+  site_production_seed_repository_path "$project_path" "$compose_file"
 }
 
 site_create_seed_platform() {
   local project_path="$1"
-  echo "[CREATE SEED] Laravel db:seed --force"
-  deploy_compose "$project_path" exec -T app php artisan db:seed --force
+  echo "[CREATE SEED] Production allow-list"
+  site_production_seed_platform_path "$project_path"
 }
 
 # Override repository create finalize only inside the create command process.
@@ -37,7 +36,6 @@ site_create_repository_finalize() {
 }
 
 # Override shared provision finalize only inside the create command process.
-# Other commands still use deploy_finalize_path() unchanged and therefore do not seed.
 site_provision_finalize_runtime() {
   local project_path="$1"
 
