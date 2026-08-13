@@ -24,10 +24,14 @@ site_create_ensure_compose_compat() {
   [[ -f "$project_path/compose.yaml" || -f "$project_path/docker-compose.yml" || -f "$project_path/docker-compose.yaml" ]] \
     || die "Repository không có compose.yaml/docker-compose.yml"
 
-  # Older host wrappers may still reference these overlays. Current projects
-  # can consolidate queue/socket into compose.yaml, so create harmless empty
-  # overlays only when the repository does not provide them.
-  for overlay in compose.queue.yaml compose.socket.yaml; do
+  # Older host wrappers may still reference split service overlays even when
+  # the current application consolidates those services in compose.yaml.
+  # Empty overlays are intentionally harmless and preserve compatibility with
+  # legacy wrapper -f arguments without duplicating services.
+  for overlay in \
+    compose.queue.yaml \
+    compose.socket.yaml \
+    compose.scheduler.yaml; do
     if [[ ! -e "$project_path/$overlay" ]]; then
       printf 'services: {}\n' > "$project_path/$overlay"
       echo "[INFO] Compose compatibility overlay created: $overlay"
