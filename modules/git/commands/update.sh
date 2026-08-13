@@ -27,8 +27,22 @@ branch="$(platform_git_branch "$path")"
 remote="$(platform_git_remote "$path")"
 [[ -n "$remote" ]] || die "Repository không có remote origin: $path"
 
-if [[ -n "$(git -C "$path" status --porcelain)" ]]; then
-  die "Working tree không sạch. Commit/stash thay đổi local trước khi update."
+# Runtime artifacts are created/managed by Platform and must not block a safe
+# source-code update. Tracked source modifications remain blocking.
+status_blocking="$(
+  git -C "$path" status --porcelain --untracked-files=all \
+    -- . \
+    ':(exclude).env' \
+    ':(exclude).docker-platform.env' \
+    ':(exclude)compose.queue.yaml' \
+    ':(exclude)compose.socket.yaml' \
+    ':(exclude)compose.scheduler.yaml'
+)"
+
+if [[ -n "$status_blocking" ]]; then
+  echo "[ERROR] Working tree có thay đổi source cần xử lý trước khi update:"
+  printf '%s\n' "$status_blocking"
+  die "Working tree source không sạch. Commit/stash thay đổi source trước khi update."
 fi
 
 old_head="$(git -C "$path" rev-parse HEAD)"
@@ -56,6 +70,7 @@ Upstream     : $upstream
 Ahead        : $ahead
 Behind       : $behind
 Strategy     : FAST-FORWARD ONLY
+Ignored      : .env, .docker-platform.env, compose.{queue,socket,scheduler}.yaml
 =========================================================
 EOF
 
