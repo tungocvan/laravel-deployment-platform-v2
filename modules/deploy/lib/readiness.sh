@@ -2,10 +2,11 @@
 #
 # Database readiness override.
 #
-# IMPORTANT: Laravel managed sites mount .env into the app container; DB_* is
-# not guaranteed to exist in the container process environment. Do not probe
-# readiness with getenv(DB_*). Bootstrap Laravel so Dotenv/config are loaded,
-# then ask the configured database connection for a PDO handle.
+# Wait-database is a Docker/MariaDB readiness gate, not an application config
+# validation step. The db service already receives MARIADB_DATABASE and
+# MARIADB_ROOT_PASSWORD from Compose, so probe MariaDB from inside that
+# container. Do not depend on DB_* being exported in the app process.
+# Application/Laravel DB configuration is validated later by migrate/health.
 #
 
 deploy_wait_database() {
@@ -14,25 +15,23 @@ deploy_wait_database() {
   started="$(date +%s)"
 
   while true; do
-    if deploy_compose "$project_dir" ps db 2>/dev/null | grep -Eq 'Up|healthy|running'; then
-      if deploy_compose "$project_dir" exec -T app php -r '
-        try {
-          require "vendor/autoload.php";
-          $app = require "bootstrap/app.php";
-          $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
-          $app->make("db")->connection()->getPdo();
-          exit(0);
-        } catch (Throwable $e) {
-          fwrite(STDERR, get_class($e).": ".$e->getMessage().PHP_EOL);
-          exit(1);
-        }
+    if deploy_compose "$project_dir" ps db 2>/dev/null | grep -Eqi 'Up|healthy|running'; then
+      if deploy_compose "$project_dir" exec -T db sh -lc '
+        set -eu
+        command -v mariadb >/dev/null 2>&1 || { echo "mariadb client missing in db container" >&2; exit 2; }
+        mariadb -h 127.0.0.1 -uroot -p"$MARIADB_ROOT_PASSWORD" -Nse "SELECT 1" >/dev/null
+        mariadb -h 127.0.0.1 -uroot -p"$MARIADB_ROOT_PASSWORD" -Nse \
+          "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME=\"$MARIADB_DATABASE\"" \
+          | grep -Fxq "$MARIADB_DATABASE"
       ' >/dev/null 2>"/tmp/platform-db-readiness-$$.err"; then
         rm -f "/tmp/platform-db-readiness-$$.err"
-        echo "[OK] Database connection ready"
+        echo "[OK] Database service ready"
         return 0
       else
         last_diag="$(tail -n 1 "/tmp/platform-db-readiness-$$.err" 2>/dev/null || true)"
       fi
+    else
+      last_diag="db service not running/healthy yet"
     fi
 
     now="$(date +%s)"
