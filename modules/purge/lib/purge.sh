@@ -107,14 +107,58 @@ site_purge_source_is_managed() {
   esac
 }
 
+site_purge_legacy_nginx_matches_domain() {
+  local file="$1" domain="$2" name found=0
+  [[ -f "$file" ]] || return 1
+
+  while IFS= read -r name; do
+    [[ -n "$name" ]] || continue
+    found=1
+    case "$name" in
+      "$domain"|"www.$domain") ;;
+      *) return 1 ;;
+    esac
+  done < <(platform_nginx_server_names_from_file "$file")
+
+  [[ "$found" -eq 1 ]]
+}
+
 site_purge_nginx_remove() {
   local domain="$1"
   [[ -n "$domain" ]] || return 0
 
-  if ! platform_nginx_remove "$domain"; then
-    platform_error "PURGE.NGINX_REMOVE_FAILED" "Không thể xoá Nginx config cho $domain. Archive/inventory được giữ nguyên để retry."
+  local target enabled
+  target="$(platform_nginx_config_path "$domain")"
+  enabled="$(platform_nginx_enabled_path "$domain")"
+
+  if [[ ! -f "$target" ]]; then
+    rm -f "$enabled"
+    echo "[INFO] No Nginx config to remove: $domain"
+    return 0
+  fi
+
+  if platform_nginx_is_managed_file "$target"; then
+    platform_nginx_remove "$domain"
+    return $?
+  fi
+
+  if ! site_purge_legacy_nginx_matches_domain "$target" "$domain"; then
+    platform_error "PURGE.NGINX_FOREIGN_CONFIG" \
+      "Từ chối xoá legacy Nginx config vì chứa server_name ngoài domain '$domain': $target"
     return 1
   fi
+
+  echo "[WARN] Legacy Nginx config không có Platform marker nhưng chỉ thuộc domain $domain; purge sẽ xoá an toàn."
+  platform_nginx_backup_file "$target"
+  rm -f "$enabled" "$target"
+
+  if ! nginx -t; then
+    platform_error "PURGE.NGINX_CONFIG_INVALID" \
+      "Nginx config không hợp lệ sau khi xoá $domain. Backup đã được giữ tại $(platform_nginx_backup_dir)."
+    return 1
+  fi
+  systemctl reload nginx
+  echo "[OK] Legacy Nginx config removed: $domain"
 }
 
 site_purge() {
