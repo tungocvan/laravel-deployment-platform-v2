@@ -57,7 +57,12 @@ EOF
 }
 
 ui_flow_create() {
-  local strategy name domain repo branch ssl=1 choice replace_domain=0 domain_rc=0
+  local strategy name domain repo branch dockerfile compose_file ssl=1 choice replace_domain=0 domain_rc=0
+  local default_repo="git@github.com:vhdtshop-ux/source-laravel-12.git"
+  local default_branch="main"
+  local default_dockerfile="Dockerfile"
+  local default_compose="compose.yaml"
+
   ui_section "CREATE SITE"
   cat <<'EOF'
   1) Docker Platform hiện tại
@@ -113,16 +118,18 @@ EOF
       ;;
   esac
 
-  repo="$(ui_prompt "Git repository")"
-  [[ -n "$repo" ]] || { echo "[ERROR] Repository bắt buộc."; ui_pause; return; }
-  branch="$(ui_prompt "Git branch [main]")"; branch="${branch:-main}"
+  repo="$(ui_prompt "Git repository [$default_repo]")"; repo="${repo:-$default_repo}"
+  branch="$(ui_prompt "Git branch [$default_branch]")"; branch="${branch:-$default_branch}"
+  dockerfile="$(ui_prompt "Dockerfile [$default_dockerfile]")"; dockerfile="${dockerfile:-$default_dockerfile}"
+  compose_file="$(ui_prompt "Compose file [$default_compose]")"; compose_file="${compose_file:-$default_compose}"
+
   if [[ "$ssl" -eq 1 ]]; then
     ui_yesno "SSL?" "Y" || ssl=0
   else
     echo "[INFO] SSL đã tắt do DNS preflight."
   fi
 
-  local args=(site create "--name=$name" "--domain=$domain" "--repo=$repo" "--branch=$branch" "--docker=$strategy")
+  local args=(site create "--name=$name" "--domain=$domain" "--repo=$repo" "--branch=$branch" "--docker=$strategy" "--dockerfile=$dockerfile" "--compose-file=$compose_file")
   [[ "$ssl" -eq 0 ]] && args+=(--no-ssl)
   [[ "$replace_domain" -eq 1 ]] && args+=(--replace-domain-config)
 
