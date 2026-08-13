@@ -39,6 +39,51 @@ site_create_ensure_compose_compat() {
   done
 }
 
+site_create_cleanup_stale_runtime() {
+  local identity="$1"
+  require_command docker
+  [[ -n "$identity" ]] || die "Docker identity rỗng khi cleanup stale runtime."
+
+  # Fresh Create owns an identity that has already passed Inventory/name checks.
+  # A previous failed Create may leave Compose resources (especially MariaDB
+  # volumes) behind. MariaDB only applies MARIADB_USER/MARIADB_PASSWORD during
+  # first initialization; reusing an old volume with newly rotated .env secrets
+  # produces SQLSTATE[1045]. Remove ONLY resources carrying the exact Compose
+  # project label for this unregistered target before provisioning it again.
+  local containers volumes networks
+  containers="$(docker ps -aq --filter "label=com.docker.compose.project=$identity" 2>/dev/null || true)"
+  volumes="$(docker volume ls -q --filter "label=com.docker.compose.project=$identity" 2>/dev/null || true)"
+  networks="$(docker network ls -q --filter "label=com.docker.compose.project=$identity" 2>/dev/null || true)"
+
+  if [[ -z "$containers" && -z "$volumes" && -z "$networks" ]]; then
+    echo "[OK] No stale Docker runtime for identity: $identity"
+    return 0
+  fi
+
+  warn "Phát hiện stale Docker runtime từ lần Create trước: $identity"
+
+  if [[ -n "$containers" ]]; then
+    # shellcheck disable=SC2086
+    docker rm -f $containers >/dev/null
+    echo "[OK] Stale containers removed"
+  fi
+
+  if [[ -n "$networks" ]]; then
+    # Remove networks after containers so endpoints are detached.
+    while read -r id; do
+      [[ -n "$id" ]] && docker network rm "$id" >/dev/null 2>&1 || true
+    done <<< "$networks"
+    echo "[OK] Stale networks removed"
+  fi
+
+  if [[ -n "$volumes" ]]; then
+    while read -r id; do
+      [[ -n "$id" ]] && docker volume rm "$id" >/dev/null
+    done <<< "$volumes"
+    echo "[OK] Stale volumes removed"
+  fi
+}
+
 site_create() {
   require_root
   require_command git
@@ -110,6 +155,7 @@ site_create() {
         exit $rc' ERR
 
   site_step 1 "Validate identity và allocate resources"
+  site_create_cleanup_stale_runtime "$docker_identity"
   echo "[OK] Identity/resources validated"
 
   site_step 2 "Clone Git repository"
