@@ -66,14 +66,16 @@ EOF
 
 ui_flow_create() {
   local name domain repo branch ssl=1
+  local default_repo="${PLATFORM_DEFAULT_SITE_REPO:-git@github.com:vhdtshop-ux/source-laravel-12.git}"
+
   name="$(ui_prompt "Tên site mới")"
   [[ -n "$name" ]] || { echo "[ERROR] Tên site bắt buộc."; ui_pause; return; }
 
   domain="$(ui_prompt "Domain")"
   [[ -n "$domain" ]] || { echo "[ERROR] Domain bắt buộc."; ui_pause; return; }
 
-  repo="$(ui_prompt "Git repository (SSH/HTTPS)")"
-  [[ -n "$repo" ]] || { echo "[ERROR] Git repository bắt buộc."; ui_pause; return; }
+  repo="$(ui_prompt "Git repository [$default_repo]")"
+  repo="${repo:-$default_repo}"
 
   branch="$(ui_prompt "Git branch [main]")"
   branch="${branch:-main}"
