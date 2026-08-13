@@ -6,21 +6,22 @@ ui_menu_sites() {
     ui_section "SITE MANAGEMENT"
     cat <<'EOF'
 
-  1) Danh sách site
-  2) Xem chi tiết site
-  3) Site doctor
-  4) Duplicate site
+  1) Create Site
+  2) Danh sách site
+  3) Xem chi tiết site
+  4) Site doctor
+  5) Duplicate site
 
-  5) Enable
-  6) Disable
-  7) Maintenance ON
-  8) Maintenance OFF
+  6) Enable
+  7) Disable
+  8) Maintenance ON
+  9) Maintenance OFF
 
-  9) Archive
- 10) Restore archived site
- 11) Danh sách archive
- 12) Purge
- 13) Purge Force (active site)
+ 10) Archive
+ 11) Restore archived site
+ 12) Danh sách archive
+ 13) Purge
+ 14) Purge Force (active site)
 
   0) Back
 
@@ -28,38 +29,65 @@ EOF
     local c site
     read -r -p "Chọn: " c
     case "$c" in
-      1) ui_run site list; ui_pause ;;
-      2)
+      1) ui_flow_create ;;
+      2) ui_run site list; ui_pause ;;
+      3)
         site="$(ui_select_site "Chọn site cần xem")" || continue
         ui_run site show "$site"; ui_pause ;;
-      3)
+      4)
         site="$(ui_select_site "Chọn site cần kiểm tra")" || continue
         ui_run site doctor "$site"; ui_pause ;;
-      4) ui_flow_duplicate ;;
-      5)
+      5) ui_flow_duplicate ;;
+      6)
         site="$(ui_select_site "Chọn site cần ENABLE")" || continue
         ui_confirm_execute "ENABLE SITE: $site" && ui_run_sudo site enable "$site" --yes
         ui_pause ;;
-      6)
+      7)
         site="$(ui_select_site "Chọn site cần DISABLE")" || continue
         ui_confirm_execute "DISABLE SITE: $site" && ui_run_sudo site disable "$site" --yes
         ui_pause ;;
-      7)
+      8)
         site="$(ui_select_site "Chọn site")" || continue
         ui_confirm_execute "MAINTENANCE ON: $site" && ui_run_sudo site maintenance on "$site"
         ui_pause ;;
-      8)
+      9)
         site="$(ui_select_site "Chọn site")" || continue
         ui_confirm_execute "MAINTENANCE OFF: $site" && ui_run_sudo site maintenance off "$site"
         ui_pause ;;
-      9) ui_flow_archive ;;
-      10) ui_flow_restore_archive ;;
-      11) ui_run site archives; ui_pause ;;
-      12) ui_flow_purge ;;
-      13) ui_flow_purge_force ;;
+      10) ui_flow_archive ;;
+      11) ui_flow_restore_archive ;;
+      12) ui_run site archives; ui_pause ;;
+      13) ui_flow_purge ;;
+      14) ui_flow_purge_force ;;
       0) return 0 ;;
     esac
   done
+}
+
+ui_flow_create() {
+  local name domain repo branch ssl=1
+  name="$(ui_prompt "Tên site mới")"
+  [[ -n "$name" ]] || { echo "[ERROR] Tên site bắt buộc."; ui_pause; return; }
+
+  domain="$(ui_prompt "Domain")"
+  [[ -n "$domain" ]] || { echo "[ERROR] Domain bắt buộc."; ui_pause; return; }
+
+  repo="$(ui_prompt "Git repository (SSH/HTTPS)")"
+  [[ -n "$repo" ]] || { echo "[ERROR] Git repository bắt buộc."; ui_pause; return; }
+
+  branch="$(ui_prompt "Git branch [main]")"
+  branch="${branch:-main}"
+  ui_yesno "SSL?" "Y" || ssl=0
+
+  local args=(site create "--name=$name" "--domain=$domain" "--repo=$repo" "--branch=$branch")
+  [[ "$ssl" -eq 0 ]] && args+=(--no-ssl)
+
+  ui_section "CREATE SITE DRY-RUN"
+  ui_run_sudo "${args[@]}" --dry-run || { ui_pause; return; }
+
+  ui_confirm_execute "CREATE SITE: $name / $domain" &&
+    ui_run_sudo "${args[@]}" --yes
+  ui_pause
 }
 
 ui_flow_duplicate() {
