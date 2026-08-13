@@ -19,6 +19,22 @@ print(json.dumps({
 PY
 }
 
+site_create_ensure_compose_compat() {
+  local project_path="$1" overlay
+  [[ -f "$project_path/compose.yaml" || -f "$project_path/docker-compose.yml" || -f "$project_path/docker-compose.yaml" ]] \
+    || die "Repository không có compose.yaml/docker-compose.yml"
+
+  # Older host wrappers may still reference these overlays. Current projects
+  # can consolidate queue/socket into compose.yaml, so create harmless empty
+  # overlays only when the repository does not provide them.
+  for overlay in compose.queue.yaml compose.socket.yaml; do
+    if [[ ! -e "$project_path/$overlay" ]]; then
+      printf 'services: {}\n' > "$project_path/$overlay"
+      echo "[INFO] Compose compatibility overlay created: $overlay"
+    fi
+  done
+}
+
 site_create() {
   require_root
   require_command git
@@ -95,6 +111,7 @@ site_create() {
   site_step 2 "Clone Git repository"
   platform_git_clone "$repo" "$project_path" "$branch"
   echo "[OK] Git HEAD: $(platform_git_commit_short "$project_path")"
+  site_create_ensure_compose_compat "$project_path"
 
   site_step 3 "Configure target environment"
   site_provision_configure_target \
