@@ -18,6 +18,17 @@ site_provision_set_env_value() {
   fi
 }
 
+site_provision_env_value() {
+  local file="$1" key="$2"
+  [[ -f "$file" ]] || return 0
+  sed -n -E "s/^${key}=(.*)$/\1/p" "$file" | tail -n1
+}
+
+site_provision_random_secret() {
+  require_command openssl
+  openssl rand -hex 24
+}
+
 site_provision_configure_target() {
   local project_path="$1"
   local name="$2"
@@ -32,13 +43,14 @@ site_provision_configure_target() {
   [[ -n "$domain" ]] || die "Provision target domain rỗng."
   [[ -n "$database" ]] || die "Provision target database rỗng."
 
-  local docker_identity
+  local docker_identity env_file
   docker_identity="$(site_slugify "$name")"
   [[ -n "$docker_identity" ]] || die "Không tạo được Docker identity."
+  env_file="$project_path/.env"
 
-  if [[ ! -f "$project_path/.env" ]]; then
+  if [[ ! -f "$env_file" ]]; then
     [[ -f "$project_path/.env.example" ]] || die "Thiếu .env và .env.example: $project_path"
-    cp "$project_path/.env.example" "$project_path/.env"
+    cp "$project_path/.env.example" "$env_file"
   fi
 
   if [[ ! -f "$project_path/.docker-platform.env" ]]; then
@@ -49,13 +61,48 @@ site_provision_configure_target() {
     fi
   fi
 
-  site_provision_set_env_value "$project_path/.env" APP_URL "https://$domain"
-  site_provision_set_env_value "$project_path/.env" DB_DATABASE "$database"
+  # Canonical Laravel/runtime identity for Docker-based managed sites.
+  site_provision_set_env_value "$env_file" APP_NAME "$name"
+  site_provision_set_env_value "$env_file" APP_ENV "production"
+  site_provision_set_env_value "$env_file" APP_DEBUG "false"
+  site_provision_set_env_value "$env_file" APP_URL "https://$domain"
+
+  # Database service lives inside the compose network. Normalize template/local
+  # defaults and guarantee every compose-required variable has a usable value.
+  local db_user db_password root_password redis_password
+  db_user="$(site_provision_env_value "$env_file" DB_USERNAME || true)"
+  [[ -n "$db_user" ]] || db_user="laravel"
+
+  db_password="$(site_provision_env_value "$env_file" DB_PASSWORD || true)"
+  root_password="$(site_provision_env_value "$env_file" MARIADB_ROOT_PASSWORD || true)"
+  redis_password="$(site_provision_env_value "$env_file" REDIS_PASSWORD || true)"
+
+  if [[ "$rotate_secrets" -eq 1 ]]; then
+    db_password="$(site_provision_random_secret)"
+    root_password="$(site_provision_random_secret)"
+    redis_password="$(site_provision_random_secret)"
+  else
+    [[ -n "$db_password" ]] || db_password="$(site_provision_random_secret)"
+    [[ -n "$root_password" ]] || root_password="$(site_provision_random_secret)"
+    [[ -n "$redis_password" && "$redis_password" != "null" ]] || redis_password="$(site_provision_random_secret)"
+  fi
+
+  site_provision_set_env_value "$env_file" DB_CONNECTION "mysql"
+  site_provision_set_env_value "$env_file" DB_HOST "db"
+  site_provision_set_env_value "$env_file" DB_PORT "3306"
+  site_provision_set_env_value "$env_file" DB_DATABASE "$database"
+  site_provision_set_env_value "$env_file" DB_USERNAME "$db_user"
+  site_provision_set_env_value "$env_file" DB_PASSWORD "$db_password"
+  site_provision_set_env_value "$env_file" MARIADB_ROOT_PASSWORD "$root_password"
+
+  site_provision_set_env_value "$env_file" REDIS_HOST "redis"
+  site_provision_set_env_value "$env_file" REDIS_PORT "6379"
+  site_provision_set_env_value "$env_file" REDIS_PASSWORD "$redis_password"
 
   if [[ "$rotate_secrets" -eq 1 ]]; then
     require_command openssl
-    site_provision_set_env_value "$project_path/.env" APP_KEY "base64:$(openssl rand -base64 32)"
-    site_provision_set_env_value "$project_path/.env" BRIDGE_SECRET_KEY "$(openssl rand -hex 32)"
+    site_provision_set_env_value "$env_file" APP_KEY "base64:$(openssl rand -base64 32)"
+    site_provision_set_env_value "$env_file" BRIDGE_SECRET_KEY "$(openssl rand -hex 32)"
   fi
 
   site_provision_set_env_value "$project_path/.docker-platform.env" COMPOSE_PROJECT_NAME "$docker_identity"
