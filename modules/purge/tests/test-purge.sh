@@ -5,7 +5,7 @@ F="$ROOT/modules/purge/lib/purge.sh"
 UI="$ROOT/modules/ui/menus/sites.sh"
 HELP="$ROOT/modules/site/commands/help.sh"
 
-for fn in site_purge site_purge_resolve_json site_purge_write_history site_purge_source_is_managed site_purge_nginx_remove; do
+for fn in site_purge site_purge_resolve_json site_purge_write_history site_purge_source_is_managed site_purge_legacy_nginx_matches_domain site_purge_nginx_remove; do
   grep -q "^${fn}()" "$F"
 done
 
@@ -14,11 +14,19 @@ grep -q 'down -v --remove-orphans' "$F"
 grep -q -- '--force-active' "$F"
 grep -q 'PURGE.ACTIVE_REQUIRES_FORCE' "$F"
 grep -q 'PURGE.SOURCE_PATH_UNMANAGED' "$F"
+grep -q 'PURGE.NGINX_FOREIGN_CONFIG' "$F"
 grep -q '/opt/\$slug/repo' "$F"
 grep -q '/opt/projects/\*' "$F"
+grep -q 'www.\$domain' "$F"
+grep -q 'Legacy Nginx config removed' "$F"
 
 # Regression: destructive Nginx errors must not be hidden by >/dev/null 2>&1.
 ! grep -q 'platform_nginx_remove .*2>&1' "$F"
+
+# Legacy config removal must still back up, validate and reload Nginx.
+grep -q 'platform_nginx_backup_file' "$F"
+grep -q 'nginx -t' "$F"
+grep -q 'systemctl reload nginx' "$F"
 
 grep -q 'Purge Force (active site)' "$UI"
 grep -q 'ui_flow_purge_force()' "$UI"
@@ -27,4 +35,4 @@ grep -q 'site purge .*--force-active --yes' "$HELP"
 bash -n "$F"
 bash -n "$UI"
 bash -n "$HELP"
-echo "[OK] Site Purge regression + force-active"
+echo "[OK] Site Purge regression + force-active + legacy-nginx"
