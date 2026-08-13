@@ -25,12 +25,17 @@ ARCHIVE
   archives
 
 PURGE
-  purge <site> [options]
-      Permanent resource destruction.
+  purge <archived-site> [options]
+      Permanent resource destruction for archived sites.
+
+  purge <active-site> --force-active --yes
+      Purge an active site directly without archiving first.
+      Backup safety remains enabled unless --no-backup is explicitly used.
 
 PURGE OPTIONS
   --dry-run
   --yes
+  --force-active   # required when source state is active inventory
   --keep-source
   --keep-volumes
   --keep-ssl
@@ -39,5 +44,9 @@ PURGE OPTIONS
 RECOMMENDED
   site archive <site>
   site purge <site> --dry-run
-  site purge <site>
+  site purge <site> --yes
+
+FORCE ACTIVE
+  site purge <site> --force-active --dry-run
+  site purge <site> --force-active --yes
 EOF
