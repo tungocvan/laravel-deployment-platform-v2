@@ -10,6 +10,7 @@ STORAGE_LIB="$ROOT/modules/site/lib/storage.sh"
 DOMAIN="$ROOT/modules/site/lib/domain-preflight.sh"
 SSL_POLICY="$ROOT/modules/site/lib/create-ssl-policy.sh"
 SEED_POLICY="$ROOT/modules/site/lib/create-seed-policy.sh"
+PROD_SEED="$ROOT/modules/site/lib/production-seed.sh"
 DOMAIN_CMD="$ROOT/modules/site/commands/domain-preflight.sh"
 CREATE_CMD="$ROOT/modules/site/commands/create.sh"
 UPDATE_CMD="$ROOT/modules/site/commands/update.sh"
@@ -19,7 +20,7 @@ MENU="$ROOT/modules/ui/menus/sites.sh"
 INVENTORY="$ROOT/modules/inventory/lib/inventory.sh"
 COMMON="$ROOT/core/lib/common.sh"
 
-[[ -f "$PROV" && -f "$CREATE" && -f "$UPDATE" && -f "$ENV_LIB" && -f "$STORAGE_LIB" && -f "$DOMAIN" && -f "$SSL_POLICY" && -f "$SEED_POLICY" && -f "$DOMAIN_CMD" && -f "$UPDATE_CMD" && -f "$ENV_CMD" && -f "$STORAGE_CMD" && -f "$COMMON" ]]
+[[ -f "$PROV" && -f "$CREATE" && -f "$UPDATE" && -f "$ENV_LIB" && -f "$STORAGE_LIB" && -f "$DOMAIN" && -f "$SSL_POLICY" && -f "$SEED_POLICY" && -f "$PROD_SEED" && -f "$DOMAIN_CMD" && -f "$UPDATE_CMD" && -f "$ENV_CMD" && -f "$STORAGE_CMD" && -f "$COMMON" ]]
 for fn in site_provision_configure_target site_provision_prepare_runtime site_provision_finalize_runtime site_provision_health site_provision_commit_inventory site_provision_cleanup_new_target; do
   grep -q "^${fn}()" "$PROV"
 done
@@ -44,9 +45,13 @@ done
 for fn in site_create_seed_repository site_create_seed_platform site_create_repository_finalize site_provision_finalize_runtime; do
   grep -q "^${fn}()" "$SEED_POLICY"
 done
+for fn in site_production_seed_repository_path site_production_seed_platform_path site_production_seed_repository site_production_seed_platform site_production_seed; do
+  grep -q "^${fn}()" "$PROD_SEED"
+done
 
 grep -q 'domain-preflight.sh' "$CREATE_CMD"
 grep -q 'create-ssl-policy.sh' "$CREATE_CMD"
+grep -q 'production-seed.sh' "$CREATE_CMD"
 grep -q 'create-seed-policy.sh' "$CREATE_CMD"
 grep -q 'site_create_record_ssl_status' "$CREATE_CMD"
 grep -q 'site_domain_preflight' "$DOMAIN_CMD"
@@ -78,7 +83,22 @@ grep -q 'site update "\$site" --dry-run' "$MENU"
 grep -q 'Docker theo repository' "$MENU"
 grep -q 'Auto detect' "$MENU"
 grep -q 'ui_flow_create' "$MENU"
+grep -q 'git@github.com:vhdtshop-ux/source-laravel-12.git' "$MENU"
+grep -q 'Git branch \[\$default_branch\]' "$MENU"
+grep -q 'Dockerfile \[\$default_dockerfile\]' "$MENU"
+grep -q 'Compose file \[\$default_compose\]' "$MENU"
 grep -q "grep -vi '^::ffff:'" "$DOMAIN"
+
+# Create production seed contract: never run global DatabaseSeeder/demo db:seed.
+grep -q 'Production allow-list' "$SEED_POLICY"
+grep -q 'site_production_seed_repository_path' "$SEED_POLICY"
+grep -q 'site_production_seed_platform_path' "$SEED_POLICY"
+if grep -Eq 'php artisan db:seed([[:space:]]|$).*--force' "$SEED_POLICY"; then
+  echo "[ERROR] Create production không được chạy global php artisan db:seed."
+  exit 1
+fi
+grep -q "RolesAndPermissionsSeeder" "$PROD_SEED"
+grep -q -- "--class='Modules\\\\Role\\\\database\\\\seeders\\\\RolesAndPermissionsSeeder'" "$PROD_SEED"
 
 # Environment safety contract: .env is app-manageable but secret. Repository
 # sites bind-mount ./.env as a single file, so ENV operations MUST preserve its
@@ -115,8 +135,6 @@ if grep -Eq 'cat[[:space:]]+.*\.env|print.*\.env' "$ENV_LIB"; then
   exit 1
 fi
 
-# Verify the in-place writer preserves inode, serializes dotenv safely and
-# classifies infrastructure keys away from the generic ENV editor.
 TEST_ENV_LIB="$ENV_LIB" TEST_ENV_TMP="$(mktemp -d)" bash -c '
   set -Eeuo pipefail
   require_root(){ :; }
@@ -176,7 +194,6 @@ if grep -q 'merge --ff-only' "$UPDATE"; then
   exit 1
 fi
 
-# Normal deploy must remain seed-free.
 if grep -q 'db:seed' "$ROOT/modules/deploy/lib/deploy.sh"; then
   echo "[ERROR] Deploy thường không được tự chạy db:seed."
   exit 1
@@ -190,7 +207,6 @@ if grep -q 'certbot ' "$SITE"; then
   exit 1
 fi
 
-# Deterministic strategy resolution without Docker/network mutation.
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/platform" "$tmp/repository"
@@ -210,7 +226,6 @@ if site_domain_all_in_set $'157.10.198.16\n1.2.3.4' $'10.0.0.1\n157.10.198.16'; 
   exit 1
 fi
 
-# IPv4-mapped IPv6 (::ffff:a.b.c.d) is not a real AAAA record for SSL routing.
 TEST_GETENT_DIR="$tmp/getent-bin"
 mkdir -p "$TEST_GETENT_DIR"
 cat > "$TEST_GETENT_DIR/getent" <<'EOF'
@@ -229,7 +244,7 @@ actual_dns6="$(PATH="$TEST_GETENT_DIR:$PATH" site_domain_dns_ipv6 example.test)"
   exit 1
 }
 
-# Create Site must seed after migrate and before optimize for repository strategy.
+# Create repository order: migrate -> production seed -> optimize. Global db:seed forbidden.
 TEST_SEED_POLICY="$SEED_POLICY" bash -c '
   set -Eeuo pipefail
   calls=""
@@ -237,30 +252,30 @@ TEST_SEED_POLICY="$SEED_POLICY" bash -c '
   site_create_repository_compose(){
     case "$*" in
       *"php artisan migrate --force"*) calls+=$'"'"'migrate\n'"'"' ;;
-      *"php artisan db:seed --force"*) calls+=$'"'"'seed\n'"'"' ;;
       *"php artisan optimize:clear"*) calls+=$'"'"'optimize\n'"'"' ;;
+      *"php artisan db:seed --force"*) echo "global seed forbidden" >&2; exit 90 ;;
       *) : ;;
     esac
   }
+  site_production_seed_repository_path(){ calls+=$'"'"'production-seed\n'"'"'; }
   source "$TEST_SEED_POLICY"
   site_create_repository_finalize /tmp/site compose.yaml
-  [[ "$calls" == $'"'"'migrate\nseed\noptimize\n'"'"' ]]
+  [[ "$calls" == $'"'"'migrate\nproduction-seed\noptimize\n'"'"' ]]
 '
 
-# Create Site must seed after migrate and before optimize for platform strategy.
+# Create platform order: migrate -> production seed -> optimize -> health.
 TEST_SEED_POLICY="$SEED_POLICY" bash -c '
   set -Eeuo pipefail
   calls=""
   deploy_migrate_path(){ calls+=$'"'"'migrate\n'"'"'; }
-  deploy_compose(){ calls+=$'"'"'seed\n'"'"'; }
+  site_production_seed_platform_path(){ calls+=$'"'"'production-seed\n'"'"'; }
   deploy_optimize_path(){ calls+=$'"'"'optimize\n'"'"'; }
   deploy_health_path(){ calls+=$'"'"'health\n'"'"'; }
   source "$TEST_SEED_POLICY"
   site_provision_finalize_runtime /tmp/site
-  [[ "$calls" == $'"'"'migrate\nseed\noptimize\nhealth\n'"'"' ]]
+  [[ "$calls" == $'"'"'migrate\nproduction-seed\noptimize\nhealth\n'"'"' ]]
 '
 
-# Create Site must keep the HTTP site when Certbot fails.
 TEST_SSL_POLICY="$SSL_POLICY" bash -c '
   set -Eeuo pipefail
   require_root(){ :; }
@@ -289,4 +304,4 @@ set -e
   exit 1
 }
 
-echo "[OK] Site Provisioning + Create Strategy + Domain Preflight + Seed + SSL Policy + Update + Env + Storage tests"
+echo "[OK] Site Provisioning + Create Strategy + Production Seed + Domain Preflight + SSL Policy + Update + Env + Storage tests"
