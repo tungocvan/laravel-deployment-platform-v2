@@ -15,6 +15,13 @@
 # `.env.example` is only a compatibility fallback for repositories that do not
 # provide `.env.docker.example`. Do not reverse this priority during refactors.
 #
+# ENV PERMISSION CONTRACT
+# -----------------------
+# Managed sites expose an admin ENV editor through PHP-FPM. Because `.env` is
+# bind-mounted from the host into the app container, the host file must be
+# writable by the PHP-FPM runtime group. Default runtime GID is 33 (www-data).
+# Override with PLATFORM_APP_GID when an image uses a different runtime GID.
+#
 
 site_provision_set_env_value() {
   local file="$1" key="$2" value="$3" escaped
@@ -37,6 +44,19 @@ site_provision_env_value() {
 site_provision_random_secret() {
   require_command openssl
   openssl rand -hex 24
+}
+
+site_provision_apply_env_permissions() {
+  local env_file="$1"
+  local app_gid="${PLATFORM_APP_GID:-33}"
+
+  [[ -f "$env_file" ]] || die "Không tìm thấy .env để phân quyền: $env_file"
+  [[ "$app_gid" =~ ^[0-9]+$ ]] || die "PLATFORM_APP_GID không hợp lệ: $app_gid"
+
+  chown "root:${app_gid}" "$env_file"
+  chmod 0660 "$env_file"
+
+  echo "[OK] Environment permissions: root:${app_gid} 0660"
 }
 
 site_provision_init_env() {
@@ -89,9 +109,6 @@ site_provision_configure_target() {
     fi
   fi
 
-  # Site-specific identity. Docker service defaults come from
-  # .env.docker.example whenever available; Platform only injects identity,
-  # allocated resources, and rotated secrets required for this site instance.
   site_provision_set_env_value "$env_file" APP_NAME "$name"
   site_provision_set_env_value "$env_file" APP_ENV "production"
   site_provision_set_env_value "$env_file" APP_DEBUG "false"
@@ -130,6 +147,8 @@ site_provision_configure_target() {
   site_provision_set_env_value "$project_path/.docker-platform.env" COMPOSE_PROJECT_NAME "$docker_identity"
   site_provision_set_env_value "$project_path/.docker-platform.env" HTTP_PORT "$http_port"
   site_provision_set_env_value "$project_path/.docker-platform.env" SOCKET_PORT "$socket_port"
+
+  site_provision_apply_env_permissions "$env_file"
 
   echo "[OK] Provision target configured: $name"
 }
@@ -183,9 +202,7 @@ site_provision_cleanup_new_target() {
   fi
 
   if [[ "$nginx_created" -eq 1 ]]; then
-    # Remove Nginx first; SSL module refuses to delete cert while Nginx references it.
     platform_nginx_remove "$domain" >/dev/null 2>&1 || true
-    # Only remove cert if it belongs to this exact domain and is now unused.
     platform_ssl_remove "$domain" >/dev/null 2>&1 || true
   fi
 
