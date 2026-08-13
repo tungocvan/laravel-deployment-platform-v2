@@ -5,6 +5,16 @@
 # This library owns COMMON target lifecycle steps only.
 # Source strategies (duplicate/restore/create) own how application data arrives.
 #
+# IMPORTANT ENV CONTRACT FOR DOCKER SITES
+# ---------------------------------------
+# When creating/provisioning a fresh managed Docker site, `.env` MUST be
+# initialized from `.env.docker.example` when that file exists. This is the
+# canonical Docker runtime template because it contains compose-network values
+# such as DB_HOST=db, REDIS_HOST=redis and the variables required by compose.
+#
+# `.env.example` is only a compatibility fallback for repositories that do not
+# provide `.env.docker.example`. Do not reverse this priority during refactors.
+#
 
 site_provision_set_env_value() {
   local file="$1" key="$2" value="$3" escaped
@@ -29,6 +39,27 @@ site_provision_random_secret() {
   openssl rand -hex 24
 }
 
+site_provision_init_env() {
+  local project_path="$1" env_file="$project_path/.env"
+
+  [[ ! -f "$env_file" ]] || return 0
+
+  if [[ -f "$project_path/.env.docker.example" ]]; then
+    cp "$project_path/.env.docker.example" "$env_file"
+    echo "[INFO] Environment template: .env.docker.example"
+    return 0
+  fi
+
+  if [[ -f "$project_path/.env.example" ]]; then
+    warn ".env.docker.example không tồn tại; fallback sang .env.example."
+    cp "$project_path/.env.example" "$env_file"
+    echo "[INFO] Environment template: .env.example (fallback)"
+    return 0
+  fi
+
+  die "Thiếu .env, .env.docker.example và .env.example: $project_path"
+}
+
 site_provision_configure_target() {
   local project_path="$1"
   local name="$2"
@@ -48,10 +79,7 @@ site_provision_configure_target() {
   [[ -n "$docker_identity" ]] || die "Không tạo được Docker identity."
   env_file="$project_path/.env"
 
-  if [[ ! -f "$env_file" ]]; then
-    [[ -f "$project_path/.env.example" ]] || die "Thiếu .env và .env.example: $project_path"
-    cp "$project_path/.env.example" "$env_file"
-  fi
+  site_provision_init_env "$project_path"
 
   if [[ ! -f "$project_path/.docker-platform.env" ]]; then
     if [[ -f "$project_path/.docker-platform.env.example" ]]; then
@@ -61,14 +89,14 @@ site_provision_configure_target() {
     fi
   fi
 
-  # Canonical Laravel/runtime identity for Docker-based managed sites.
+  # Site-specific identity. Docker service defaults come from
+  # .env.docker.example whenever available; Platform only injects identity,
+  # allocated resources, and rotated secrets required for this site instance.
   site_provision_set_env_value "$env_file" APP_NAME "$name"
   site_provision_set_env_value "$env_file" APP_ENV "production"
   site_provision_set_env_value "$env_file" APP_DEBUG "false"
   site_provision_set_env_value "$env_file" APP_URL "https://$domain"
 
-  # Database service lives inside the compose network. Normalize template/local
-  # defaults and guarantee every compose-required variable has a usable value.
   local db_user db_password root_password redis_password
   db_user="$(site_provision_env_value "$env_file" DB_USERNAME || true)"
   [[ -n "$db_user" ]] || db_user="laravel"
@@ -82,21 +110,15 @@ site_provision_configure_target() {
     root_password="$(site_provision_random_secret)"
     redis_password="$(site_provision_random_secret)"
   else
-    [[ -n "$db_password" ]] || db_password="$(site_provision_random_secret)"
-    [[ -n "$root_password" ]] || root_password="$(site_provision_random_secret)"
-    [[ -n "$redis_password" && "$redis_password" != "null" ]] || redis_password="$(site_provision_random_secret)"
+    [[ -n "$db_password" && "$db_password" != "CHANGE_ME" ]] || db_password="$(site_provision_random_secret)"
+    [[ -n "$root_password" && "$root_password" != "CHANGE_ME_ROOT" ]] || root_password="$(site_provision_random_secret)"
+    [[ -n "$redis_password" && "$redis_password" != "null" && "$redis_password" != "CHANGE_ME_REDIS" ]] || redis_password="$(site_provision_random_secret)"
   fi
 
-  site_provision_set_env_value "$env_file" DB_CONNECTION "mysql"
-  site_provision_set_env_value "$env_file" DB_HOST "db"
-  site_provision_set_env_value "$env_file" DB_PORT "3306"
   site_provision_set_env_value "$env_file" DB_DATABASE "$database"
   site_provision_set_env_value "$env_file" DB_USERNAME "$db_user"
   site_provision_set_env_value "$env_file" DB_PASSWORD "$db_password"
   site_provision_set_env_value "$env_file" MARIADB_ROOT_PASSWORD "$root_password"
-
-  site_provision_set_env_value "$env_file" REDIS_HOST "redis"
-  site_provision_set_env_value "$env_file" REDIS_PORT "6379"
   site_provision_set_env_value "$env_file" REDIS_PASSWORD "$redis_password"
 
   if [[ "$rotate_secrets" -eq 1 ]]; then
