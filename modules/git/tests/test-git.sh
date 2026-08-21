@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-ROOT="${PLATFORM_HOME:-/opt/laravel-deployment-platform-v2}"
+SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ROOT="${PLATFORM_HOME:-$SCRIPT_ROOT}"
 FILE="$ROOT/modules/git/lib/git.sh"
+MIGRATE="$ROOT/modules/git/commands/migrate-remote.sh"
+HELP="$ROOT/modules/git/commands/help.sh"
 
 for fn in \
   platform_git_normalize_safe_directories \
@@ -14,6 +17,18 @@ done
 
 grep -q 'unset-all safe.directory' "$FILE"
 grep -q "grep -qx ''" "$FILE"
+
+[[ -x "$MIGRATE" ]]
+grep -q 'site_default_repo' "$MIGRATE"
+grep -q -- '--dry-run' "$MIGRATE"
+grep -q -- '--yes' "$MIGRATE"
+grep -q 'merge-base --is-ancestor' "$MIGRATE"
+grep -q 'remote set-url origin' "$MIGRATE"
+grep -q 'rollback_remote' "$MIGRATE"
+grep -q 'inventory_sync' "$MIGRATE"
+grep -q 'platform_audit_try "git" "migrate-remote"' "$MIGRATE"
+! grep -Eq 'reset --hard|pull |checkout -f|switch -f' "$MIGRATE"
+grep -q 'migrate-remote <site>' "$HELP"
 
 assert_git_verify_error() {
   local expected_exit="$1"
@@ -44,4 +59,4 @@ assert_git_verify_error 3 GIT.PATH_NOT_FOUND "$TMP_DIR/missing"
 mkdir -p "$TMP_DIR/not-repo"
 assert_git_verify_error 3 GIT.NOT_REPOSITORY "$TMP_DIR/not-repo"
 
-echo "[OK] Git Module dev.2 helpers"
+echo "[OK] Git Module helpers + safe remote migration contract"
