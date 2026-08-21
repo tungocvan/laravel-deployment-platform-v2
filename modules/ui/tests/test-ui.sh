@@ -6,9 +6,13 @@ ROOT="${PLATFORM_HOME:-$SCRIPT_ROOT}"
 
 for f in \
   "$ROOT/modules/ui/lib/ui.sh" \
+  "$ROOT/modules/ui/menus/main.sh" \
   "$ROOT/modules/ui/menus/infrastructure.sh" \
   "$ROOT/modules/ui/menus/backup.sh" \
   "$ROOT/modules/ui/menus/sites.sh" \
+  "$ROOT/modules/ui/menus/deploy.sh" \
+  "$ROOT/modules/ui/menus/doctor.sh" \
+  "$ROOT/modules/ui/menus/packages.sh" \
   "$ROOT/modules/ui/flows/bootstrap-repository.sh" \
   "$ROOT/modules/ui/commands/menu.sh"
 do
@@ -48,4 +52,24 @@ grep -q 'git sync-repositories.*--yes' "$ROOT/modules/ui/menus/sites.sh"
 grep -q 'Target ahead hoặc diverged: BLOCK' "$ROOT/modules/ui/menus/sites.sh"
 grep -q 'Không force-push, không tự merge, không sync ngược' "$ROOT/modules/ui/menus/sites.sh"
 
-echo "[OK] Interactive UI dev.5 + compatible-main + bootstrap replace-existing + repository sync flow"
+# Professional navigation contract: top-level items explain their contents and
+# an operator guide must be reachable directly from the first screen.
+grep -q '^ui_quick_guide()' "$ROOT/modules/ui/menus/main.sh"
+grep -q 'Sites & Repository' "$ROOT/modules/ui/menus/main.sh"
+grep -q 'Deploy & Runtime' "$ROOT/modules/ui/menus/main.sh"
+grep -q 'Hướng dẫn sử dụng / Chọn đúng chức năng' "$ROOT/modules/ui/menus/main.sh"
+grep -q 'source "$PLATFORM_HOME/modules/ui/menus/main.sh"' "$ROOT/modules/ui/commands/menu.sh"
+
+# Deploy menu must make the fast .env/config workflow discoverable without
+# requiring operators to know that it is implemented by deploy optimize.
+grep -q 'Backend / Laravel Runtime (Migrate, Optimize/Reload .env, Health)' "$ROOT/modules/ui/menus/deploy.sh"
+grep -q 'Optimize / Reload .env' "$ROOT/modules/ui/menus/deploy.sh"
+grep -q 'Health Check — Services + Laravel Boot + Application HTTP' "$ROOT/modules/ui/menus/deploy.sh"
+grep -q 'Full Deploy — build images + Docker up + migrate + optimize' "$ROOT/modules/ui/menus/deploy.sh"
+
+grep -q 'REPOSITORY MANAGEMENT' "$ROOT/modules/ui/menus/sites.sh"
+grep -q 'INFRASTRUCTURE — SSL CERTIFICATES / NGINX ROUTING' "$ROOT/modules/ui/menus/infrastructure.sh"
+grep -q 'DOCTOR & DOMAIN DIAGNOSTICS' "$ROOT/modules/ui/menus/doctor.sh"
+grep -q 'PACKAGES — INVENTORY / VERIFY / HISTORY' "$ROOT/modules/ui/menus/packages.sh"
+
+echo "[OK] Interactive UI dev.6 + descriptive operations console + repository/deploy guidance"
