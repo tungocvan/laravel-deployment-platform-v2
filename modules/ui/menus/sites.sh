@@ -22,7 +22,7 @@ ui_menu_sites() {
  12) Danh sách archive
  13) Purge
  14) Purge Force (active site)
- 15) Update kho mới (main phải giống 100%)
+ 15) Update kho mới (main cùng dòng source)
 
   0) Back
 
@@ -182,10 +182,11 @@ ui_flow_update_repository() {
   local site new_repo
   site="$(ui_select_site "Chọn site cần UPDATE KHO MỚI")" || return 0
 
-  ui_section "UPDATE KHO MỚI — STRICT MAIN IDENTITY"
+  ui_section "UPDATE KHO MỚI — MAIN LINEAGE CHECK"
   echo "Platform chỉ cho đổi địa chỉ repository khi:"
   echo "  - Site đang ở branch main"
-  echo "  - Kho cũ/main và kho mới/main có cùng commit SHA 100%"
+  echo "  - Kho mới/main chứa đầy đủ history của kho cũ/main"
+  echo "  - Kho mới có thể bằng hoặc đi trước kho cũ"
   echo "  - Working tree source sạch"
   echo "  - Không update code, không deploy"
   echo
@@ -196,15 +197,15 @@ ui_flow_update_repository() {
   [[ -n "$new_repo" ]] || { echo "[ERROR] Repository mới bắt buộc."; ui_pause; return; }
 
   ui_section "VERIFY / DRY-RUN"
-  ui_run_sudo git migrate-remote "$site" "--to=$new_repo" --require-identical-main --dry-run || {
+  ui_run_sudo git migrate-remote "$site" "--to=$new_repo" --require-compatible-main --dry-run || {
     echo
-    echo "[ERROR] Không đủ điều kiện thay đổi repository. Không có thay đổi nào được thực hiện."
+    echo "[ERROR] Kho mới không cùng dòng source main hoặc không đủ điều kiện. Không có thay đổi nào được thực hiện."
     ui_pause
     return
   }
 
   echo
   ui_confirm_execute "UPDATE REPOSITORY ADDRESS: $site → $new_repo" &&
-    ui_run_sudo git migrate-remote "$site" "--to=$new_repo" --require-identical-main --yes
+    ui_run_sudo git migrate-remote "$site" "--to=$new_repo" --require-compatible-main --yes
   ui_pause
 }

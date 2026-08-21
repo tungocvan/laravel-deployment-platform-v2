@@ -7,16 +7,16 @@ source "$PLATFORM_HOME/modules/site/lib/repository.sh"
 
 site="${1:-}"
 shift || true
-[[ -n "$site" ]] || platform_die "$PLATFORM_EXIT_USAGE" "GIT.ARGUMENT_REQUIRED" "USAGE: platform-v2 git migrate-remote <site> [--to=<repo>] [--require-identical-main] [--dry-run] [--yes]"
+[[ -n "$site" ]] || platform_die "$PLATFORM_EXIT_USAGE" "GIT.ARGUMENT_REQUIRED" "USAGE: platform-v2 git migrate-remote <site> [--to=<repo>] [--require-compatible-main] [--require-identical-main] [--dry-run] [--yes]"
 
 target_repo="$(site_default_repo)"
 dry_run=0
 yes=0
-require_identical_main=0
+require_compatible_main=0
 for arg in "$@"; do
   case "$arg" in
     --to=*) target_repo="${arg#*=}" ;;
-    --require-identical-main) require_identical_main=1 ;;
+    --require-compatible-main|--require-identical-main) require_compatible_main=1 ;;
     --dry-run) dry_run=1 ;;
     --yes) yes=1 ;;
     *) platform_die "$PLATFORM_EXIT_USAGE" "GIT.INVALID_OPTION" "Option không hợp lệ: $arg" ;;
@@ -55,7 +55,11 @@ if [[ "$current_repo" == "$target_repo" ]]; then
   exit 0
 fi
 
-if (( require_identical_main == 1 )); then
+old_main_ref=""
+new_main_ref=""
+old_main_head=""
+new_main_head=""
+if (( require_compatible_main == 1 )); then
   [[ "$branch" == "main" ]] || platform_die "$PLATFORM_EXIT_CONFLICT" "GIT.STRICT_MAIN_BRANCH_REQUIRED" \
     "Update kho mới chỉ áp dụng khi working tree đang ở branch main; hiện tại: $branch"
 
@@ -67,20 +71,27 @@ if (( require_identical_main == 1 )); then
   [[ -n "$new_main_head" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.TARGET_MAIN_NOT_FOUND" \
     "Không đọc được branch main của kho mới: $target_repo"
 
-  if [[ "$old_main_head" != "$new_main_head" ]]; then
+  old_main_ref="refs/platform/repository-check/old-main"
+  new_main_ref="refs/platform/repository-check/new-main"
+  git -C "$path" fetch --no-tags "$current_repo" "refs/heads/main:$old_main_ref" >/dev/null
+  git -C "$path" fetch --no-tags "$target_repo" "refs/heads/main:$new_main_ref" >/dev/null
+  trap 'git -C "$path" update-ref -d "$old_main_ref" >/dev/null 2>&1 || true; git -C "$path" update-ref -d "$new_main_ref" >/dev/null 2>&1 || true; git -C "$path" update-ref -d "refs/platform/migrate-remote/$branch" >/dev/null 2>&1 || true' EXIT
+
+  if ! git -C "$path" merge-base --is-ancestor "$old_main_ref" "$new_main_ref" >/dev/null 2>&1; then
     cat <<EOF
 =========================================================
-REPOSITORY IDENTITY CHECK — FAILED
+REPOSITORY MAIN LINEAGE CHECK — FAILED
 =========================================================
 Current repo : $current_repo
 Current main : $old_main_head
 New repo     : $target_repo
 New main     : $new_main_head
-Identical    : NO
+Compatible   : NO
+Rule         : old/main must be ancestor of new/main
 =========================================================
 EOF
-    platform_die "$PLATFORM_EXIT_CONFLICT" "GIT.MAIN_NOT_IDENTICAL" \
-      "Kho cũ và kho mới không giống nhau 100% ở branch main. Từ chối thay đổi địa chỉ repository."
+    platform_die "$PLATFORM_EXIT_CONFLICT" "GIT.MAIN_LINEAGE_INCOMPATIBLE" \
+      "Kho mới/main không chứa đầy đủ history của kho cũ/main. Từ chối thay đổi địa chỉ repository."
   fi
 fi
 
@@ -89,7 +100,9 @@ target_branch_head="$(git ls-remote --heads "$target_repo" "refs/heads/$branch" 
 
 temp_ref="refs/platform/migrate-remote/$branch"
 git -C "$path" fetch --no-tags "$target_repo" "refs/heads/$branch:$temp_ref" >/dev/null
-trap 'git -C "$path" update-ref -d "$temp_ref" >/dev/null 2>&1 || true' EXIT
+if (( require_compatible_main == 0 )); then
+  trap 'git -C "$path" update-ref -d "$temp_ref" >/dev/null 2>&1 || true' EXIT
+fi
 
 git -C "$path" merge-base --is-ancestor "$old_head" "$temp_ref" >/dev/null 2>&1 \
   || platform_die "$PLATFORM_EXIT_CONFLICT" "GIT.TARGET_HISTORY_MISMATCH" "Current HEAD không thuộc history của target branch $branch. Từ chối đổi remote."
@@ -112,11 +125,14 @@ Target HEAD  : $target_branch_head
 Ahead        : $ahead
 Behind       : $behind
 EOF
-if (( require_identical_main == 1 )); then
+if (( require_compatible_main == 1 )); then
+  main_relation="SAME"
+  [[ "$old_main_head" != "$new_main_head" ]] && main_relation="NEW REPO AHEAD"
   cat <<EOF
 Old main     : $old_main_head
 New main     : $new_main_head
-Main equal   : YES (100% same commit)
+Main lineage : COMPATIBLE ($main_relation)
+Rule         : old/main is ancestor of new/main
 Mode         : REPOSITORY ADDRESS CHANGE ONLY
 EOF
 fi
@@ -156,13 +172,12 @@ if [[ -z "$origin_head" ]] || ! git -C "$path" merge-base --is-ancestor "$old_he
   platform_die "$PLATFORM_EXIT_OPERATION" "GIT.POST_MIGRATION_VERIFY_FAILED" "Verify target sau đổi remote thất bại; origin đã rollback về repository cũ."
 fi
 
-if (( require_identical_main == 1 )); then
-  post_main_head="$(git -C "$path" ls-remote --heads origin refs/heads/main 2>/dev/null | awk 'NR==1 {print $1}')"
-  if [[ -z "$post_main_head" || "$post_main_head" != "$old_main_head" ]]; then
+if (( require_compatible_main == 1 )); then
+  if ! git -C "$path" merge-base --is-ancestor "$old_main_ref" "origin/main" >/dev/null 2>&1; then
     rollback_remote
-    platform_audit_try "git" "migrate-remote" "$site" "failed" "GIT.POST_MAIN_IDENTITY_FAILED" "" "not-attempted"
-    platform_die "$PLATFORM_EXIT_OPERATION" "GIT.POST_MAIN_IDENTITY_FAILED" \
-      "Main của origin sau thay đổi không còn khớp kho cũ; origin đã rollback."
+    platform_audit_try "git" "migrate-remote" "$site" "failed" "GIT.POST_MAIN_LINEAGE_FAILED" "" "not-attempted"
+    platform_die "$PLATFORM_EXIT_OPERATION" "GIT.POST_MAIN_LINEAGE_FAILED" \
+      "Main của origin sau thay đổi không còn chứa history kho cũ; origin đã rollback."
   fi
 fi
 
@@ -170,6 +185,8 @@ inventory_sync "$site" >/dev/null
 platform_audit_try "git" "migrate-remote" "$site" "success" "" "" "not-required"
 
 git -C "$path" update-ref -d "$temp_ref" >/dev/null 2>&1 || true
+[[ -n "$old_main_ref" ]] && git -C "$path" update-ref -d "$old_main_ref" >/dev/null 2>&1 || true
+[[ -n "$new_main_ref" ]] && git -C "$path" update-ref -d "$new_main_ref" >/dev/null 2>&1 || true
 trap - EXIT
 printf '[OK] Remote migrated: %s -> %s\n' "$old_repo" "$target_repo"
 printf '[OK] HEAD giữ nguyên: %s\n' "$old_head"
