@@ -34,6 +34,7 @@ ui_menu_sites() {
  15) Update kho mới (main cùng dòng source) — chỉ đổi origin khi history tương thích
  16) Khởi tạo kho mới trống từ kho cũ — copy old/main sang repo mới rồi đổi origin
  17) Đồng bộ 2 kho Git — sync một chiều SOURCE/main → TARGET/main, fast-forward only
+ 18) Kiểm tra quyền repository / SSH key — test READ+WRITE+DELETE, tạo key riêng khi thiếu quyền
 
   0) Back
 
@@ -74,6 +75,7 @@ EOF
       15) ui_flow_update_repository ;;
       16) ui_flow_bootstrap_repository ;;
       17) ui_flow_sync_repositories ;;
+      18) ui_flow_repository_access ;;
       0) return 0 ;;
     esac
   done
