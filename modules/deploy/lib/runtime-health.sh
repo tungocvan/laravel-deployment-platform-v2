@@ -30,6 +30,17 @@ deploy_wait_service_ready_path() {
   done
 }
 
+deploy_restart_web_proxy_path() {
+  local project_dir="$1" timeout="${2:-120}"
+
+  deploy_runtime_service_exists "$project_dir" web || return 0
+
+  echo "[INFO] Restart web để refresh FastCGI upstream sau app restart"
+  deploy_compose "$project_dir" restart web
+  deploy_wait_service_ready_path "$project_dir" web "$timeout"
+  echo "[OK] runtime web"
+}
+
 deploy_restart_php_runtime_path() {
   local project_dir="$1" timeout="${2:-120}"
   local service
@@ -50,6 +61,10 @@ deploy_restart_php_runtime_path() {
     deploy_wait_service_ready_path "$project_dir" "$service" "$timeout"
     echo "[OK] runtime $service"
   done
+
+  # Nginx resolves the app service address for FastCGI. After app restart/recreate,
+  # refresh web only after app is healthy so it cannot retain a stale upstream IP.
+  deploy_restart_web_proxy_path "$project_dir" "$timeout"
 }
 
 deploy_resolve_http_port_path() {

@@ -26,6 +26,11 @@ grep -q 'site_provision_configure_target' "$SITE"
 grep -q 'site_provision_prepare_runtime' "$SITE"
 grep -q 'platform_ssl_issue' "$SITE"
 
+# New-site env must not inherit stale session identity from repository templates.
+grep -Fq 'SESSION_COOKIE "${docker_identity}-session"' "$PROV" || { echo '[ERROR] Missing site-specific SESSION_COOKIE provisioning'; exit 1; }
+grep -Fq 'SESSION_DOMAIN "$domain"' "$PROV" || { echo '[ERROR] Missing site-specific SESSION_DOMAIN provisioning'; exit 1; }
+grep -Fq 'SESSION_SECURE_COOKIE "true"' "$PROV" || { echo '[ERROR] Missing HTTPS session cookie provisioning'; exit 1; }
+
 # Canonical repository contract shared by CLI/UI.
 # shellcheck disable=SC1090
 source "$REPO_LIB"
@@ -58,4 +63,4 @@ if grep -q 'certbot ' "$SITE"; then
   exit 1
 fi
 
-echo "[OK] Site Provisioning Engine + canonical repository contract + v2 paths"
+echo "[OK] Site Provisioning Engine + session identity reset + canonical repository contract + v2 paths"
