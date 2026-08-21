@@ -114,6 +114,13 @@ site_provision_configure_target() {
   site_provision_set_env_value "$env_file" APP_DEBUG "false"
   site_provision_set_env_value "$env_file" APP_URL "https://$domain"
 
+  # A repository/template may carry session identity from another deployment.
+  # Always reset these values for the new site so Laravel cannot boot with an
+  # empty cookie name or a stale cookie domain from the source repository.
+  site_provision_set_env_value "$env_file" SESSION_COOKIE "${docker_identity}-session"
+  site_provision_set_env_value "$env_file" SESSION_DOMAIN "$domain"
+  site_provision_set_env_value "$env_file" SESSION_SECURE_COOKIE "true"
+
   local db_user db_password root_password redis_password
   db_user="$(site_provision_env_value "$env_file" DB_USERNAME || true)"
   [[ -n "$db_user" ]] || db_user="laravel"
