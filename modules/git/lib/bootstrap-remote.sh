@@ -208,21 +208,49 @@ if [[ "$new_tree" != "$source_tree" ]]; then
 fi
 
 old_repo="$current_repo"
-rollback_remote() { git -C "$path" remote set-url origin "$old_repo" >/dev/null 2>&1 || true; }
+rollback_remote() {
+  git -C "$path" remote set-url origin "$old_repo" >/dev/null 2>&1 || true
+}
+rollback_target_main() {
+  local current_target_head=""
+  current_target_head="$(target_git ls-remote --heads "$target_repo" refs/heads/main 2>/dev/null | awk 'NR==1 {print $1}')"
+  if [[ "$target_state" == "EXISTING" && -n "$target_ref" && -n "$current_target_head" ]]; then
+    target_git -C "$path" push --force-with-lease="refs/heads/main:$current_target_head" "$target_repo" "$target_ref:refs/heads/main" >/dev/null 2>&1 || return 1
+    return 0
+  fi
+  if [[ "$target_state" == "EMPTY" && "$current_target_head" == "$source_main_head" ]]; then
+    target_git -C "$path" push --force-with-lease="refs/heads/main:$current_target_head" "$target_repo" ":refs/heads/main" >/dev/null 2>&1 || return 1
+    return 0
+  fi
+  return 1
+}
+rollback_cutover() {
+  rollback_remote
+  if rollback_target_main; then
+    printf '[WARN] Đã rollback target/main về trạng thái trước bootstrap.\n' >&2
+  else
+    printf '[WARN] Không thể xác nhận rollback target/main tự động; backup/ref an toàn được giữ để xử lý thủ công.\n' >&2
+  fi
+}
+
 git -C "$path" remote set-url origin "$target_repo"
 if ! target_git -C "$path" fetch --prune origin >/dev/null; then
-  rollback_remote
-  platform_audit_try "git" "bootstrap-remote" "$site" "failed" "GIT.POST_BOOTSTRAP_FETCH_FAILED" "" "not-attempted"
-  platform_die "$PLATFORM_EXIT_OPERATION" "GIT.POST_BOOTSTRAP_FETCH_FAILED" "Fetch kho mới sau cutover thất bại; origin đã rollback về kho cũ."
+  rollback_cutover
+  platform_audit_try "git" "bootstrap-remote" "$site" "failed" "GIT.POST_BOOTSTRAP_FETCH_FAILED" "" "attempted"
+  platform_die "$PLATFORM_EXIT_OPERATION" "GIT.POST_BOOTSTRAP_FETCH_FAILED" "Fetch kho mới sau cutover thất bại; đã thực hiện rollback an toàn."
 fi
 origin_main="$(git -C "$path" rev-parse origin/main 2>/dev/null || true)"
 if [[ "$origin_main" != "$source_main_head" ]]; then
-  rollback_remote
-  platform_audit_try "git" "bootstrap-remote" "$site" "failed" "GIT.POST_BOOTSTRAP_VERIFY_FAILED" "" "not-attempted"
-  platform_die "$PLATFORM_EXIT_OPERATION" "GIT.POST_BOOTSTRAP_VERIFY_FAILED" "Verify origin/main sau cutover thất bại; origin đã rollback về kho cũ."
+  rollback_cutover
+  platform_audit_try "git" "bootstrap-remote" "$site" "failed" "GIT.POST_BOOTSTRAP_VERIFY_FAILED" "" "attempted"
+  platform_die "$PLATFORM_EXIT_OPERATION" "GIT.POST_BOOTSTRAP_VERIFY_FAILED" "Verify origin/main sau cutover thất bại; đã thực hiện rollback an toàn."
 fi
 
-inventory_sync "$site" >/dev/null
+if ! inventory_sync "$site" >/dev/null; then
+  rollback_cutover
+  platform_audit_try "git" "bootstrap-remote" "$site" "failed" "GIT.INVENTORY_SYNC_FAILED" "" "attempted"
+  platform_die "$PLATFORM_EXIT_OPERATION" "GIT.INVENTORY_SYNC_FAILED" "Inventory sync thất bại; origin và target/main đã được rollback khi có thể."
+fi
 platform_audit_try "git" "bootstrap-remote" "$site" "success" "" "" "not-required"
 if [[ -n "$backup_ref" ]]; then
   if target_git -C "$path" push "$target_repo" ":$backup_ref" >/dev/null 2>&1; then

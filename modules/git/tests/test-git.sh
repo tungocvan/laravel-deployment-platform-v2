@@ -61,8 +61,12 @@ grep -q 'refs/heads/main' "$BOOTSTRAP_LIB"
 grep -q 'GIT.BOOTSTRAP_SHA_MISMATCH' "$BOOTSTRAP_LIB"
 grep -q 'GIT.BOOTSTRAP_TREE_MISMATCH' "$BOOTSTRAP_LIB"
 grep -q 'remote set-url origin' "$BOOTSTRAP_LIB"
-grep -q 'rollback_remote' "$BOOTSTRAP_LIB"
-grep -q 'inventory_sync "$site"' "$BOOTSTRAP_LIB"
+grep -q '^rollback_remote()' "$BOOTSTRAP_LIB"
+grep -q '^rollback_target_main()' "$BOOTSTRAP_LIB"
+grep -q '^rollback_cutover()' "$BOOTSTRAP_LIB"
+grep -q 'GIT.INVENTORY_SYNC_FAILED' "$BOOTSTRAP_LIB"
+grep -q 'if ! inventory_sync "$site"' "$BOOTSTRAP_LIB"
+grep -q 'rollback_cutover' "$BOOTSTRAP_LIB"
 grep -q 'platform_audit_try "git" "bootstrap-remote"' "$BOOTSTRAP_LIB"
 ! grep -Eq 'reset --hard|pull |checkout -f|switch -f' "$BOOTSTRAP_LIB"
 
@@ -77,7 +81,7 @@ grep -q 'target_git -C "$path" fetch --prune origin' "$BOOTSTRAP_LIB"
 push_line="$(grep -n 'source_ref:refs/heads/main' "$BOOTSTRAP_LIB" | head -n1 | cut -d: -f1)"
 sha_line="$(grep -n 'GIT.BOOTSTRAP_SHA_MISMATCH' "$BOOTSTRAP_LIB" | head -n1 | cut -d: -f1)"
 remote_line="$(grep -n 'remote set-url origin' "$BOOTSTRAP_LIB" | tail -n1 | cut -d: -f1)"
-sync_bootstrap_line="$(grep -n 'inventory_sync "$site"' "$BOOTSTRAP_LIB" | tail -n1 | cut -d: -f1)"
+sync_bootstrap_line="$(grep -n 'if ! inventory_sync "$site"' "$BOOTSTRAP_LIB" | tail -n1 | cut -d: -f1)"
 [[ -n "$push_line" && -n "$sha_line" && -n "$remote_line" && -n "$sync_bootstrap_line" ]]
 (( sha_line > push_line ))
 (( remote_line > sha_line ))
@@ -124,7 +128,7 @@ assert_git_verify_error() {
   status=$?
   set -e
   [[ "$status" -eq "$expected_exit" ]] || { printf '[FAIL] git verify expected exit %s, got %s\n%s\n' "$expected_exit" "$status" "$output" >&2; exit 1; }
-  [[ "$output" == *"[$expected_error_id]"* ]] || { printf '[FAIL] git verify missing error id %s\n%s\n' "$expected_error_id" "$output" >&2; exit 1; }
+  [[ "$output" == *"[$expected_error_id]"* ]] || { printf '[FAIL] git verify missing error id %s\n%s\n' "$expected_error_id" "$status" "$output" >&2; exit 1; }
 }
 
 TMP_DIR="$(mktemp -d)"
@@ -140,4 +144,4 @@ bash -n "$BOOTSTRAP_LIB"
 bash -n "$SYNC"
 bash -n "$SYNC_LIB"
 bash -n "$UPDATE"
-echo "[OK] Git Module helpers + compatible-main + bootstrap replace-existing + repository sync preview + Inventory sync contract"
+echo "[OK] Git Module helpers + compatible-main + bootstrap replace-existing rollback + repository sync preview + Inventory sync contract"
