@@ -2,17 +2,19 @@
 
 ui_repo_access_parse_github() {
   local repo="$1"
-  if [[ "$repo" =~ ^git@github\.com:([^/]+)/(.+?)(\.git)?$ ]]; then
+  if [[ "$repo" =~ ^git@github\.com:([^/]+)/([^/]+)$ ]]; then
     UI_REPO_OWNER="${BASH_REMATCH[1]}"
     UI_REPO_NAME="${BASH_REMATCH[2]}"
     UI_REPO_NAME="${UI_REPO_NAME%.git}"
-    return 0
+    [[ -n "$UI_REPO_OWNER" && -n "$UI_REPO_NAME" ]]
+    return
   fi
-  if [[ "$repo" =~ ^https://github\.com/([^/]+)/(.+?)(\.git)?/?$ ]]; then
+  if [[ "$repo" =~ ^https://github\.com/([^/]+)/([^/]+)/?$ ]]; then
     UI_REPO_OWNER="${BASH_REMATCH[1]}"
     UI_REPO_NAME="${BASH_REMATCH[2]}"
     UI_REPO_NAME="${UI_REPO_NAME%.git}"
-    return 0
+    [[ -n "$UI_REPO_OWNER" && -n "$UI_REPO_NAME" ]]
+    return
   fi
   return 1
 }
@@ -94,7 +96,7 @@ ui_repo_access_show_result() {
 
 ui_repo_access_generate_key() {
   local repo="$1" owner="$2" name="$3"
-  local ssh_dir key_base key_file alias config_file tmp_config public_key
+  local ssh_dir key_base key_file alias config_file
   ssh_dir="${HOME:-/root}/.ssh"
   mkdir -p "$ssh_dir"
   chmod 700 "$ssh_dir"
