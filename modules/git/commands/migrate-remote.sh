@@ -84,11 +84,9 @@ EOF
   fi
 fi
 
-# Read-only target verification. Do not mutate origin before all guards pass.
 target_branch_head="$(git ls-remote --heads "$target_repo" "refs/heads/$branch" | awk 'NR==1 {print $1}')"
 [[ -n "$target_branch_head" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.TARGET_BRANCH_NOT_FOUND" "Target repository không có branch $branch hoặc không thể truy cập: $target_repo"
 
-# Fetch target into a temporary ref without touching origin or the working tree.
 temp_ref="refs/platform/migrate-remote/$branch"
 git -C "$path" fetch --no-tags "$target_repo" "refs/heads/$branch:$temp_ref" >/dev/null
 trap 'git -C "$path" update-ref -d "$temp_ref" >/dev/null 2>&1 || true' EXIT
@@ -144,7 +142,6 @@ rollback_remote() {
   git -C "$path" remote set-url origin "$old_repo" >/dev/null 2>&1 || true
 }
 
-# Minimal mutation: change origin, verify fetch, then sync Inventory.
 git -C "$path" remote set-url origin "$target_repo"
 if ! git -C "$path" fetch --prune origin; then
   rollback_remote
@@ -160,7 +157,7 @@ if [[ -z "$origin_head" ]] || ! git -C "$path" merge-base --is-ancestor "$old_he
 fi
 
 if (( require_identical_main == 1 )); then
-  post_main_head="$(git ls-remote --heads origin refs/heads/main 2>/dev/null | awk 'NR==1 {print $1}')"
+  post_main_head="$(git -C "$path" ls-remote --heads origin refs/heads/main 2>/dev/null | awk 'NR==1 {print $1}')"
   if [[ -z "$post_main_head" || "$post_main_head" != "$old_main_head" ]]; then
     rollback_remote
     platform_audit_try "git" "migrate-remote" "$site" "failed" "GIT.POST_MAIN_IDENTITY_FAILED" "" "not-attempted"
