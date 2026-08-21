@@ -6,7 +6,7 @@ USAGE
   platform site <command> [options]
 
 COMMANDS
-  create --name=... --domain=... --repo=... [options]
+  create --name=... --domain=... [--repo=...] [options]
   list
   show <name|domain|path>
   exec <site> <command...>
@@ -14,6 +14,8 @@ COMMANDS
   duplicate --from=... --name=... --domain=... [options]
 
 CREATE OPTIONS
+  --repo=<git-url>        default: git@github.com:tungocvan/laravel-shop.git
+                          override: PLATFORM_DEFAULT_SITE_REPO
   --branch=<branch>       default: main
   --path=<absolute-path>  default: /opt/projects/<site>
   --http-port=<port|auto>
@@ -53,7 +55,8 @@ PURGE OPTIONS
   --no-backup      # dangerous, requires --yes
 
 EXAMPLES
-  site create --name=demo --domain=demo.example.com --repo=git@github.com:org/app.git --dry-run
+  site create --name=demo --domain=demo.example.com --dry-run
+  site create --name=demo --domain=demo.example.com --yes
   site create --name=demo --domain=demo.example.com --repo=git@github.com:org/app.git --yes
 
 RECOMMENDED
