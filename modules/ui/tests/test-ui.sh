@@ -54,12 +54,16 @@ grep -q 'Target ahead hoặc diverged: BLOCK' "$ROOT/modules/ui/menus/sites.sh"
 grep -q 'Không force-push, không tự merge, không sync ngược' "$ROOT/modules/ui/menus/sites.sh"
 
 # Repository access workflow: menu 18 probes read/write/delete without touching
-# main, can generate a repository-specific key, never prints the private key,
-# and guides the operator to install only the public key on GitHub.
+# main, reuses an existing owner SSH alias before creating a new credential,
+# can generate a repository-specific key, and never prints the private key.
 grep -q '18) Kiểm tra quyền repository / SSH key' "$ROOT/modules/ui/menus/sites.sh"
 grep -q '18) ui_flow_repository_access' "$ROOT/modules/ui/menus/sites.sh"
 grep -q 'source "$PLATFORM_HOME/modules/ui/flows/repository-access.sh"' "$ROOT/modules/ui/commands/menu.sh"
 grep -q '^ui_flow_repository_access()' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q '^ui_repo_access_existing_owner_alias()' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q '"github-$owner" "github-$owner-$name"' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'Phát hiện SSH alias đã có cho owner' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'Không cần tạo SSH key mới' "$ROOT/modules/ui/flows/repository-access.sh"
 grep -q 'refs/platform/write-probe/access-' "$ROOT/modules/ui/flows/repository-access.sh"
 grep -q 'github_${owner}_${name}_ed25519' "$ROOT/modules/ui/flows/repository-access.sh"
 grep -q 'Private key: .*KHÔNG hiển thị' "$ROOT/modules/ui/flows/repository-access.sh"
@@ -90,4 +94,4 @@ grep -q 'INFRASTRUCTURE — SSL CERTIFICATES / NGINX ROUTING' "$ROOT/modules/ui/
 grep -q 'DOCTOR & DOMAIN DIAGNOSTICS' "$ROOT/modules/ui/menus/doctor.sh"
 grep -q 'PACKAGES — INVENTORY / VERIFY / HISTORY' "$ROOT/modules/ui/menus/packages.sh"
 
-echo "[OK] Interactive UI dev.6 + descriptive console + repository access/SSH key guidance"
+echo "[OK] Interactive UI dev.6 + descriptive console + repository access/SSH alias guidance"
