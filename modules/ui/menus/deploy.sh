@@ -124,6 +124,16 @@ EOF
   done
 }
 
+ui_deploy_git_update() {
+  local site="$1"
+  ui_section "GIT UPDATE DRY-RUN"
+  ui_run_sudo git update "$site" --dry-run || { ui_pause; return; }
+  echo
+  ui_confirm_execute "UPDATE CODE FROM GITHUB: $site" &&
+    ui_run_sudo git update "$site" --yes
+  ui_pause
+}
+
 ui_deploy_wizard() {
   local site
   site="$(ui_select_site "Chọn site cần Deploy")" || return 0
@@ -147,11 +157,12 @@ ui_deploy_wizard() {
 
     cat <<'EOF'
 
-  1) Full Deploy
-  2) Backend
-  3) Frontend
-  4) Health Check
-  5) Status
+  1) Update Code from GitHub
+  2) Full Deploy
+  3) Backend
+  4) Frontend
+  5) Health Check
+  6) Status
 
   0) Back
 EOF
@@ -161,14 +172,17 @@ EOF
     read -r -p "Chọn: " c
     case "$c" in
       1)
+        ui_deploy_git_update "$site"
+        ;;
+      2)
         ui_confirm_execute "FULL DEPLOY: $site" &&
           ui_run_sudo deploy run "$site"
         ui_pause
         ;;
-      2)
+      3)
         ui_deploy_backend_menu "$site"
         ;;
-      3)
+      4)
         if [[ -z "$detect" ]]; then
           echo "[ERROR] Package-006 frontend API chưa sẵn sàng."
           ui_pause
@@ -176,11 +190,11 @@ EOF
           ui_deploy_frontend_menu "$site"
         fi
         ;;
-      4)
+      5)
         ui_run deploy health "$site"
         ui_pause
         ;;
-      5)
+      6)
         ui_run deploy status "$site"
         ui_pause
         ;;

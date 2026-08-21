@@ -92,18 +92,88 @@ site_purge_inventory_remove_if_present() {
   fi
 }
 
+site_purge_source_is_managed() {
+  local site="$1" path="$2"
+  local canonical slug expected
+  [[ -n "$path" ]] || return 1
+  canonical="$(readlink -m -- "$path")"
+  slug="$(site_slugify "$site")"
+  expected="/opt/$slug/repo"
+
+  case "$canonical" in
+    /opt/projects/*) [[ "$canonical" != "/opt/projects" && "$canonical" != "/opt/projects/" ]] ;;
+    "$expected") return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+site_purge_legacy_nginx_matches_domain() {
+  local file="$1" domain="$2" name found=0
+  [[ -f "$file" ]] || return 1
+
+  while IFS= read -r name; do
+    [[ -n "$name" ]] || continue
+    found=1
+    case "$name" in
+      "$domain"|"www.$domain") ;;
+      *) return 1 ;;
+    esac
+  done < <(platform_nginx_server_names_from_file "$file")
+
+  [[ "$found" -eq 1 ]]
+}
+
+site_purge_nginx_remove() {
+  local domain="$1"
+  [[ -n "$domain" ]] || return 0
+
+  local target enabled
+  target="$(platform_nginx_config_path "$domain")"
+  enabled="$(platform_nginx_enabled_path "$domain")"
+
+  if [[ ! -f "$target" ]]; then
+    rm -f "$enabled"
+    echo "[INFO] No Nginx config to remove: $domain"
+    return 0
+  fi
+
+  if platform_nginx_is_managed_file "$target"; then
+    platform_nginx_remove "$domain"
+    return $?
+  fi
+
+  if ! site_purge_legacy_nginx_matches_domain "$target" "$domain"; then
+    platform_error "PURGE.NGINX_FOREIGN_CONFIG" \
+      "Từ chối xoá legacy Nginx config vì chứa server_name ngoài domain '$domain': $target"
+    return 1
+  fi
+
+  echo "[WARN] Legacy Nginx config không có Platform marker nhưng chỉ thuộc domain $domain; purge sẽ xoá an toàn."
+  platform_nginx_backup_file "$target"
+  rm -f "$enabled" "$target"
+
+  if ! nginx -t; then
+    platform_error "PURGE.NGINX_CONFIG_INVALID" \
+      "Nginx config không hợp lệ sau khi xoá $domain. Backup đã được giữ tại $(platform_nginx_backup_dir)."
+    return 1
+  fi
+  systemctl reload nginx
+  echo "[OK] Legacy Nginx config removed: $domain"
+}
+
 site_purge() {
   require_root
   local site="${1:-}"; shift || true
   [[ -n "$site" ]] || die "USAGE: platform site purge <site> [options]"
 
-  local dry_run=0 auto_yes=0 do_backup=1
+  local dry_run=0 auto_yes=0 do_backup=1 force_active=0
   local keep_source=0 keep_volumes=0 keep_ssl=0 arg
   for arg in "$@"; do
     case "$arg" in
       --dry-run) dry_run=1 ;;
       --yes) auto_yes=1 ;;
       --no-backup) do_backup=0 ;;
+      --force-active) force_active=1 ;;
       --keep-source) keep_source=1 ;;
       --keep-volumes) keep_volumes=1 ;;
       --keep-ssl) keep_ssl=1 ;;
@@ -114,6 +184,9 @@ site_purge() {
   if [[ "$do_backup" -eq 0 && "$auto_yes" -ne 1 ]]; then
     die "--no-backup bắt buộc đi cùng --yes."
   fi
+  if [[ "$force_active" -eq 1 && "$auto_yes" -ne 1 && "$dry_run" -ne 1 ]]; then
+    die "--force-active bắt buộc đi cùng --yes khi thực thi."
+  fi
 
   local resolved source_type path domain database backup_id=""
   resolved="$(site_purge_resolve_json "$site")"
@@ -122,6 +195,11 @@ site_purge() {
   domain="$(site_purge_json_field "$resolved" record.domain)"
   database="$(site_purge_json_field "$resolved" record.database)"
   backup_id="$(site_purge_json_field "$resolved" final_backup)"
+
+  if [[ "$source_type" == "inventory" && "$force_active" -ne 1 ]]; then
+    platform_die "$PLATFORM_EXIT_CONFLICT" "PURGE.ACTIVE_REQUIRES_FORCE" \
+      "Site '$site' đang active. Hãy Archive trước, hoặc dùng --force-active --yes để purge trực tiếp."
+  fi
 
   echo "========================================================="
   echo "SITE PURGE PLAN"
@@ -132,6 +210,7 @@ site_purge() {
   echo "Domain       : ${domain:-N/A}"
   echo "Database     : ${database:-N/A}"
   echo "Path         : ${path:-N/A}"
+  echo "Mode         : $([[ "$force_active" -eq 1 ]] && echo FORCE-ACTIVE || echo ARCHIVE)"
   echo "Backup       : $([[ "$do_backup" -eq 1 ]] && echo REQUIRED || echo SKIPPED)"
   echo "Keep source  : $keep_source"
   echo "Keep volumes : $keep_volumes"
@@ -181,21 +260,23 @@ site_purge() {
   fi
 
   echo "[PURGE 02/08] Nginx disable"
-  [[ -n "$domain" ]] && platform_nginx_disable "$domain" >/dev/null 2>&1 || true
+  if [[ -n "$domain" ]]; then
+    platform_nginx_disable "$domain" || warn "Nginx disable không hoàn tất; tiếp tục remove config."
+  fi
 
   echo "[PURGE 03/08] Docker runtime"
   if [[ -n "$path" && -d "$path" ]]; then
     if [[ "$keep_volumes" -eq 1 ]]; then
-      deploy_compose "$path" down --remove-orphans || true
+      deploy_compose "$path" down --remove-orphans || warn "Docker runtime cleanup có lỗi; tiếp tục purge."
     else
-      deploy_compose "$path" down -v --remove-orphans || true
+      deploy_compose "$path" down -v --remove-orphans || warn "Docker runtime/volume cleanup có lỗi; tiếp tục purge."
     fi
   else
     echo "[INFO] Source path absent; Docker compose cleanup skipped."
   fi
 
   echo "[PURGE 04/08] Nginx config"
-  [[ -n "$domain" ]] && platform_nginx_remove "$domain" >/dev/null 2>&1 || true
+  site_purge_nginx_remove "$domain" || return "$PLATFORM_EXIT_OPERATION"
 
   echo "[PURGE 05/08] SSL"
   if [[ "$keep_ssl" -eq 1 ]]; then
@@ -210,15 +291,11 @@ site_purge() {
   if [[ "$keep_source" -eq 1 ]]; then
     echo "[KEEP] Source: $path"
   elif [[ -n "$path" && -e "$path" ]]; then
-    case "$path" in
-      /opt/projects/*)
-        [[ "$path" != "/opt/projects" && "$path" != "/opt/projects/" ]] || die "Refuse projects root."
-        rm -rf --one-file-system "$path"
-        ;;
-      *)
-        die "Refuse auto-purge source ngoài /opt/projects: $path. Dùng --keep-source."
-        ;;
-    esac
+    if ! site_purge_source_is_managed "$site" "$path"; then
+      platform_die "$PLATFORM_EXIT_CONFLICT" "PURGE.SOURCE_PATH_UNMANAGED" \
+        "Refuse auto-purge source ngoài managed path: $path"
+    fi
+    rm -rf --one-file-system "$path"
   fi
 
   echo "[PURGE 07/08] Detach state"
