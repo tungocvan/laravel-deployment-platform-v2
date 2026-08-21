@@ -24,6 +24,7 @@ ui_menu_sites() {
  14) Purge Force (active site)
  15) Update kho mới (main cùng dòng source)
  16) Khởi tạo kho mới trống từ kho cũ
+ 17) Đồng bộ 2 kho Git
 
   0) Back
 
@@ -63,6 +64,7 @@ EOF
       14) ui_flow_purge_force ;;
       15) ui_flow_update_repository ;;
       16) ui_flow_bootstrap_repository ;;
+      17) ui_flow_sync_repositories ;;
       0) return 0 ;;
     esac
   done
@@ -245,5 +247,38 @@ ui_flow_bootstrap_repository() {
   echo "Origin của site chỉ thay đổi sau khi push và verify thành công."
   ui_confirm_execute "BOOTSTRAP NEW REPOSITORY: $site → $new_repo" &&
     ui_run_sudo git bootstrap-remote "$site" "--to=$new_repo" --yes
+  ui_pause
+}
+
+ui_flow_sync_repositories() {
+  local source_repo target_repo
+
+  ui_section "ĐỒNG BỘ 2 KHO GIT — MAIN FAST-FORWARD ONLY"
+  echo "Quy tắc an toàn:"
+  echo "  - Sync một chiều SOURCE/main -> TARGET/main"
+  echo "  - Target trống, bằng source hoặc behind source: cho phép"
+  echo "  - Target ahead hoặc diverged: BLOCK"
+  echo "  - Không force-push, không tự merge, không sync ngược"
+  echo "  - Không dùng source project local"
+  echo "  - Không đổi site origin/Inventory, không deploy/database/container"
+  echo
+
+  source_repo="$(ui_prompt "Repository NGUỒN")"
+  [[ -n "$source_repo" ]] || { echo "[ERROR] Repository nguồn bắt buộc."; ui_pause; return; }
+  target_repo="$(ui_prompt "Repository ĐÍCH")"
+  [[ -n "$target_repo" ]] || { echo "[ERROR] Repository đích bắt buộc."; ui_pause; return; }
+
+  ui_section "REPOSITORY SYNC DRY-RUN"
+  ui_run_sudo git sync-repositories "--from=$source_repo" "--to=$target_repo" --dry-run || {
+    echo
+    echo "[ERROR] Hai repository không đủ điều kiện sync fast-forward. Không có thay đổi nào được thực hiện."
+    ui_pause
+    return
+  }
+
+  echo
+  echo "CẢNH BÁO: Bước tiếp theo có thể push SOURCE/main sang TARGET/main."
+  ui_confirm_execute "SYNC REPOSITORIES: $source_repo → $target_repo" &&
+    ui_run_sudo git sync-repositories "--from=$source_repo" "--to=$target_repo" --yes
   ui_pause
 }

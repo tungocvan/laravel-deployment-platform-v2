@@ -47,4 +47,11 @@ COMMANDS
       verify commit SHA + tree, rồi mới đổi origin của site và sync Inventory.
       HEAD, working tree, deploy, database và container của site được giữ nguyên.
       Nếu bất kỳ verify nào thất bại, origin site không đổi hoặc được rollback.
+
+  sync-repositories --from=<source-git-url> --to=<target-git-url> [--dry-run] [--yes]
+      Đồng bộ một chiều branch main trực tiếp từ repository nguồn sang repository đích.
+      Cho phép target trống, bằng source, hoặc đang behind source theo cùng history.
+      Từ chối target ahead hoặc diverged; tuyệt đối không force-push và không tự merge.
+      Không đọc source project local, không đổi site origin/Inventory, không deploy,
+      không thao tác database hoặc container. Sau push verify lại SHA + source tree.
 EOF

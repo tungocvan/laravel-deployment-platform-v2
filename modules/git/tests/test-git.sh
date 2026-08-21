@@ -6,6 +6,8 @@ FILE="$ROOT/modules/git/lib/git.sh"
 MIGRATE="$ROOT/modules/git/commands/migrate-remote.sh"
 BOOTSTRAP="$ROOT/modules/git/commands/bootstrap-remote.sh"
 BOOTSTRAP_LIB="$ROOT/modules/git/lib/bootstrap-remote.sh"
+SYNC="$ROOT/modules/git/commands/sync-repositories.sh"
+SYNC_LIB="$ROOT/modules/git/lib/sync-repositories.sh"
 UPDATE="$ROOT/modules/git/commands/update.sh"
 HELP="$ROOT/modules/git/commands/help.sh"
 
@@ -80,6 +82,22 @@ sync_bootstrap_line="$(grep -n 'inventory_sync "$site"' "$BOOTSTRAP_LIB" | tail 
 (( remote_line > sha_line ))
 (( sync_bootstrap_line > remote_line ))
 
+# Repository sync is source -> target, main-only, no force and no site/runtime mutation.
+[[ -x "$SYNC" ]]
+[[ -f "$SYNC_LIB" ]]
+grep -q 'sync-repositories --from=' "$HELP"
+grep -q 'GIT.SYNC_TARGET_AHEAD' "$SYNC_LIB"
+grep -q 'GIT.SYNC_DIVERGED' "$SYNC_LIB"
+grep -q 'merge-base --is-ancestor "$target_ref" "$source_ref"' "$SYNC_LIB"
+grep -q 'merge-base --is-ancestor "$source_ref" "$target_ref"' "$SYNC_LIB"
+grep -q 'source_ref:refs/heads/main' "$SYNC_LIB"
+grep -q 'GIT.SYNC_SHA_MISMATCH' "$SYNC_LIB"
+grep -q 'GIT.SYNC_TREE_MISMATCH' "$SYNC_LIB"
+grep -q 'Force push   : NO' "$SYNC_LIB"
+grep -q 'Site origin  : NO CHANGE' "$SYNC_LIB"
+grep -q 'Inventory    : NO CHANGE' "$SYNC_LIB"
+! grep -Eq -- '--force|force-with-lease|reset --hard|pull |checkout -f|switch -f|remote set-url|inventory_sync|deploy run|docker compose' "$SYNC_LIB"
+
 # A successful fast-forward must immediately reconcile Inventory Git metadata.
 grep -q 'inventory_sync "$site"' "$UPDATE"
 grep -q 'Inventory synced' "$UPDATE"
@@ -122,5 +140,7 @@ assert_git_verify_error 3 GIT.NOT_REPOSITORY "$TMP_DIR/not-repo"
 bash -n "$MIGRATE"
 bash -n "$BOOTSTRAP"
 bash -n "$BOOTSTRAP_LIB"
+bash -n "$SYNC"
+bash -n "$SYNC_LIB"
 bash -n "$UPDATE"
-echo "[OK] Git Module helpers + compatible-main remote update + empty repository bootstrap + canonical target identity + Inventory sync contract"
+echo "[OK] Git Module helpers + compatible-main + bootstrap + repository sync + Inventory sync contract"
