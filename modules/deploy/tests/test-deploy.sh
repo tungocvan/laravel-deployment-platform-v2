@@ -45,4 +45,83 @@ bash -n "$ROOT/modules/deploy/commands/run.sh"
 bash -n "$ROOT/modules/deploy/commands/health.sh"
 bash -n "$ROOT/modules/deploy/commands/optimize.sh"
 bash -n "$ROOT/modules/deploy/commands/frontend.sh"
+
+# Execute the HTTP gate itself against isolated loopback servers.
+TMP="$(mktemp -d /tmp/platform-deploy-http-test.XXXXXX)"
+PIDS=()
+cleanup() {
+  local pid
+  for pid in "${PIDS[@]:-}"; do kill "$pid" 2>/dev/null || true; done
+  rm -rf "$TMP"
+}
+trap cleanup EXIT
+
+free_port() {
+  python3 - <<'PY'
+import socket
+s=socket.socket()
+s.bind(('127.0.0.1',0))
+print(s.getsockname()[1])
+s.close()
+PY
+}
+
+wait_port() {
+  local port="$1"
+  local i
+  for i in $(seq 1 30); do
+    if python3 - "$port" <<'PY'
+import socket,sys
+s=socket.socket(); s.settimeout(.2)
+try:
+    s.connect(('127.0.0.1',int(sys.argv[1])))
+except OSError:
+    raise SystemExit(1)
+finally:
+    s.close()
+PY
+    then return 0; fi
+    sleep .1
+  done
+  return 1
+}
+
+# Source implementations for executable contract test. Any unexpected die is fatal.
+die() { echo "[TEST DIE] $*" >&2; exit 1; }
+warn() { :; }
+success() { :; }
+source "$F"
+source "$R"
+
+PORT200="$(free_port)"
+printf 'ok\n' > "$TMP/index.html"
+python3 -m http.server "$PORT200" --bind 127.0.0.1 --directory "$TMP" >/dev/null 2>&1 &
+PIDS+=("$!")
+wait_port "$PORT200"
+printf 'HTTP_PORT=%s\n' "$PORT200" > "$TMP/.docker-platform.env"
+deploy_verify_application_http_path "$TMP" 2 >/dev/null
+
+PORT500="$(free_port)"
+cat > "$TMP/server500.py" <<'PY'
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import sys
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(500)
+        self.end_headers()
+        self.wfile.write(b'fail')
+    def log_message(self, *args):
+        pass
+HTTPServer(('127.0.0.1', int(sys.argv[1])), Handler).serve_forever()
+PY
+python3 "$TMP/server500.py" "$PORT500" >/dev/null 2>&1 &
+PIDS+=("$!")
+wait_port "$PORT500"
+printf 'HTTP_PORT=%s\n' "$PORT500" > "$TMP/.docker-platform.env"
+
+if ( deploy_verify_application_http_path "$TMP" 0 >/dev/null 2>&1 ); then
+  echo '[ERROR] HTTP 500 must block deploy health'
+  exit 1
+fi
+
 echo "[OK] Deploy Module v1.2 runtime restart + application HTTP gate"
