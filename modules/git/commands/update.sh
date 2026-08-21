@@ -95,6 +95,8 @@ echo "[GIT 02/03] Fast-forward $upstream"
 git -C "$path" merge --ff-only "$upstream"
 new_head="$(git -C "$path" rev-parse HEAD)"
 
-echo "[GIT 03/03] Verify"
+echo "[GIT 03/03] Verify + sync Inventory"
 platform_git_verify "$path"
+inventory_sync "$site" >/dev/null
 printf '[OK] Code updated: %s -> %s\n' "$old_head" "$new_head"
+printf '[OK] Inventory synced: %s @ %s\n' "$site" "$new_head"
