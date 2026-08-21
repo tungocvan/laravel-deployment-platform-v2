@@ -40,13 +40,15 @@ COMMANDS
       --require-identical-main được giữ làm alias tương thích cho menu/automation cũ.
       Sau thành công sẽ sync Inventory và ghi audit log.
 
-  bootstrap-remote <site> --to=<empty-git-url> [--dry-run] [--yes]
-      Khởi tạo một repository mới hoàn toàn trống từ main của repository hiện tại.
+  bootstrap-remote <site> --to=<git-url> [--replace-existing] [--dry-run] [--yes]
+      Khởi tạo repository đích từ main của repository hiện tại.
       Source chuẩn được đọc trực tiếp từ old repository/main, không lấy source local.
-      Khi --yes: kiểm tra quyền push/delete bằng ref tạm, push old/main -> new/main,
-      verify commit SHA + tree, rồi mới đổi origin của site và sync Inventory.
+      Mặc định target phải trống. Nếu target/main đã có dữ liệu, dùng
+      --replace-existing sau khi review dry-run để thay thế target/main có kiểm soát.
+      Replace mode tạo backup ref tạm, force-with-lease đúng SHA đã kiểm tra,
+      verify commit SHA + tree, rồi mới đổi origin site và sync Inventory.
+      Branch/tag khác ở target không bị xóa. Backup ref tạm được xóa sau verify thành công.
       HEAD, working tree, deploy, database và container của site được giữ nguyên.
-      Nếu bất kỳ verify nào thất bại, origin site không đổi hoặc được rollback.
 
   sync-repositories --from=<source-git-url> --to=<target-git-url> [--dry-run] [--yes]
       Đồng bộ một chiều branch main trực tiếp từ repository nguồn sang repository đích.
