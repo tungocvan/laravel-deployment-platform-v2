@@ -21,7 +21,7 @@ ui_deploy_wizard_summary() {
   docker_services="$(ui_deploy_detect_field "$detect" docker_services)"
 
   ui_line
-  echo " DEPLOY WIZARD"
+  echo " DEPLOY & RUNTIME — $site"
   ui_line
   printf 'Site              : %s\n' "$site"
   printf 'Path              : %s\n' "${path:-N/A}"
@@ -48,7 +48,7 @@ ui_deploy_frontend_menu() {
   local site="$1"
   while true; do
     ui_header
-    ui_section "FRONTEND — $site"
+    ui_section "FRONTEND BUILD & DEPENDENCIES — $site"
 
     local detect
     detect="$("$UI_PLATFORM_BIN" deploy frontend detect "$site" 2>/dev/null)" || {
@@ -60,10 +60,10 @@ ui_deploy_frontend_menu() {
 
     cat <<'EOF'
 
-  1) Production Build (Docker-aware)
-  2) Install Dependencies
-  3) Show package scripts
-  4) Detect again
+  1) Production Build — build frontend assets theo Docker/project strategy
+  2) Install Dependencies — cài package dependencies cho frontend
+  3) Show package scripts — xem các npm/yarn/pnpm scripts khả dụng
+  4) Detect again — quét lại frontend strategy và trạng thái build
 
   0) Back
 EOF
@@ -95,12 +95,13 @@ ui_deploy_backend_menu() {
   local site="$1"
   while true; do
     ui_header
-    ui_section "BACKEND — $site"
+    ui_section "BACKEND / LARAVEL RUNTIME — $site"
     cat <<'EOF'
 
-  1) Migrate
-  2) Optimize
-  3) Health
+  1) Migrate Database — chạy php artisan migrate --force
+  2) Optimize / Reload .env — refresh Laravel cache/config và restart runtime
+     Dùng mục này khi chỉ thêm/sửa biến .env thông thường; nhanh hơn Full Deploy.
+  3) Health Check — kiểm tra services, Laravel boot và HTTP application 2xx/3xx
 
   0) Back
 EOF
@@ -109,11 +110,11 @@ EOF
     read -r -p "Chọn: " c
     case "$c" in
       1)
-        ui_confirm_execute "MIGRATE: $site" &&
+        ui_confirm_execute "MIGRATE DATABASE: $site" &&
           ui_run_sudo deploy migrate "$site"
         ui_pause ;;
       2)
-        ui_confirm_execute "OPTIMIZE: $site" &&
+        ui_confirm_execute "OPTIMIZE / RELOAD .ENV: $site" &&
           ui_run_sudo deploy optimize "$site"
         ui_pause ;;
       3)
@@ -126,7 +127,7 @@ EOF
 
 ui_deploy_git_update() {
   local site="$1"
-  ui_section "GIT UPDATE DRY-RUN"
+  ui_section "GIT UPDATE — PREVIEW / DRY-RUN"
   ui_run_sudo git update "$site" --dry-run || { ui_pause; return; }
   echo
   ui_confirm_execute "UPDATE CODE FROM GITHUB: $site" &&
@@ -136,7 +137,7 @@ ui_deploy_git_update() {
 
 ui_deploy_wizard() {
   local site
-  site="$(ui_select_site "Chọn site cần Deploy")" || return 0
+  site="$(ui_select_site "Chọn site cần Deploy / Runtime")" || return 0
 
   while true; do
     ui_header
@@ -148,7 +149,7 @@ ui_deploy_wizard() {
       ui_deploy_wizard_summary "$site" "$detect"
     else
       ui_line
-      echo " DEPLOY WIZARD"
+      echo " DEPLOY & RUNTIME"
       ui_line
       echo "Site : $site"
       echo "[INFO] Frontend detection không khả dụng; Backend/Full Deploy vẫn dùng được."
@@ -157,12 +158,21 @@ ui_deploy_wizard() {
 
     cat <<'EOF'
 
-  1) Update Code from GitHub
-  2) Full Deploy
-  3) Backend
-  4) Frontend
-  5) Health Check
-  6) Status
+  1) Update Code from GitHub — fetch + fast-forward source, không tự deploy
+
+  2) Full Deploy — build images + Docker up + migrate + optimize + runtime/HTTP health
+     Dùng khi source/build/container thay đổi; đây là quy trình đầy đủ và lâu hơn.
+
+  3) Backend / Laravel Runtime (Migrate, Optimize/Reload .env, Health)
+     Dùng cho DB migration hoặc thay đổi .env/config mà không cần rebuild image.
+
+  4) Frontend (Build, Dependencies, Scripts, Detect)
+     Quản lý frontend assets và package manager.
+
+  5) Health Check — Services + Laravel Boot + Application HTTP
+     Nên chạy đầu tiên khi site lỗi 500/502 hoặc sau thay đổi runtime.
+
+  6) Container Status — xem trạng thái Docker services của site
 
   0) Back
 EOF
