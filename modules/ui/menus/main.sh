@@ -36,6 +36,11 @@ ui_quick_guide() {
   • Tạo repository mới hoặc đồng bộ hai repository
       → Sites & Repository → Bootstrap / Sync repository
 
+  • Kiểm tra quyền GitHub / tạo SSH key riêng cho repository
+      → Sites & Repository → Kiểm tra quyền repository / SSH key
+      → Platform test READ + WRITE + DELETE bằng ref tạm, không chạm main
+      → Nếu thiếu quyền, có thể tạo key theo owner/repo và in PUBLIC KEY
+
   NGUYÊN TẮC AN TOÀN
   ------------------
   1. Ưu tiên Dry-run / Health trước thao tác thay đổi lớn.
@@ -43,6 +48,7 @@ ui_quick_guide() {
   3. Optimize dùng cho thay đổi Laravel config/.env thông thường, nhanh hơn Full Deploy.
   4. Deploy chỉ thành công khi Laravel boot và HTTP application trả 2xx/3xx.
   5. Backup trước Archive/Purge/Restore hoặc thay đổi dữ liệu quan trọng.
+  6. Không bao giờ chia sẻ private SSH key; menu chỉ hiển thị public key .pub.
 
   0) Back
 
@@ -68,7 +74,7 @@ ui_main() {
 
   1) Sites & Repository
      Create/List/Doctor, Enable/Disable, Maintenance, Archive/Purge,
-     đổi kho, tạo kho mới, đồng bộ 2 kho Git
+     đổi kho, tạo kho mới, đồng bộ 2 kho Git, kiểm tra quyền Git/SSH
 
   2) Backup & Restore
      Create/List/Verify backup, Restore site hiện tại hoặc tạo site mới
