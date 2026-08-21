@@ -3,18 +3,22 @@
 ui_menu_infrastructure() {
   while true; do
     ui_header
-    ui_section "INFRASTRUCTURE"
+    ui_section "INFRASTRUCTURE — SSL CERTIFICATES / NGINX ROUTING"
     cat <<'EOF'
 
-  1) SSL Wizard
-  2) SSL list
-  3) SSL verify
-  4) SSL show
-  5) SSL renew
+  SSL CERTIFICATES
+  ----------------
+  1) SSL Wizard — kiểm tra DNS/preflight rồi cấp chứng chỉ an toàn
+  2) SSL List — liệt kê certificate đang quản lý
+  3) SSL Verify — xác minh certificate của một domain
+  4) SSL Show — xem chi tiết certificate/domain
+  5) SSL Renew — gia hạn certificate
 
-  6) Nginx verify
-  7) Nginx show domain
-  8) Nginx conflicts
+  NGINX
+  -----
+  6) Nginx Verify — kiểm tra cấu hình Nginx tổng thể
+  7) Nginx Show Domain — xem routing/config của một domain
+  8) Nginx Conflicts — kiểm tra xung đột domain/server block
 
   0) Back
 
