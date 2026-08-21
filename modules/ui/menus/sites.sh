@@ -22,6 +22,7 @@ ui_menu_sites() {
  12) Danh sách archive
  13) Purge
  14) Purge Force (active site)
+ 15) Update kho mới (main phải giống 100%)
 
   0) Back
 
@@ -59,6 +60,7 @@ EOF
       12) ui_run site archives; ui_pause ;;
       13) ui_flow_purge ;;
       14) ui_flow_purge_force ;;
+      15) ui_flow_update_repository ;;
       0) return 0 ;;
     esac
   done
@@ -173,5 +175,36 @@ ui_flow_purge_force() {
   [[ "$typed" == "$site" ]] || { echo "[INFO] Đã hủy."; ui_pause; return; }
 
   ui_run_sudo site purge "$site" --force-active --yes
+  ui_pause
+}
+
+ui_flow_update_repository() {
+  local site new_repo
+  site="$(ui_select_site "Chọn site cần UPDATE KHO MỚI")" || return 0
+
+  ui_section "UPDATE KHO MỚI — STRICT MAIN IDENTITY"
+  echo "Platform chỉ cho đổi địa chỉ repository khi:"
+  echo "  - Site đang ở branch main"
+  echo "  - Kho cũ/main và kho mới/main có cùng commit SHA 100%"
+  echo "  - Working tree source sạch"
+  echo "  - Không update code, không deploy"
+  echo
+  ui_run site show "$site"
+  echo
+
+  new_repo="$(ui_prompt "Địa chỉ Git repository mới")"
+  [[ -n "$new_repo" ]] || { echo "[ERROR] Repository mới bắt buộc."; ui_pause; return; }
+
+  ui_section "VERIFY / DRY-RUN"
+  ui_run_sudo git migrate-remote "$site" "--to=$new_repo" --require-identical-main --dry-run || {
+    echo
+    echo "[ERROR] Không đủ điều kiện thay đổi repository. Không có thay đổi nào được thực hiện."
+    ui_pause
+    return
+  }
+
+  echo
+  ui_confirm_execute "UPDATE REPOSITORY ADDRESS: $site → $new_repo" &&
+    ui_run_sudo git migrate-remote "$site" "--to=$new_repo" --require-identical-main --yes
   ui_pause
 }
