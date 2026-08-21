@@ -16,8 +16,9 @@ done
 
 for fn in \
   deploy_runtime_service_exists deploy_wait_service_ready_path \
-  deploy_restart_php_runtime_path deploy_resolve_http_port_path \
-  deploy_verify_application_http_path deploy_optimize_path deploy_health_path
+  deploy_restart_web_proxy_path deploy_restart_php_runtime_path \
+  deploy_resolve_http_port_path deploy_verify_application_http_path \
+  deploy_optimize_path deploy_health_path
 do
   grep -q "^${fn}()" "$R" || { echo "[ERROR] Missing runtime guard $fn"; exit 1; }
 done
@@ -25,6 +26,10 @@ done
 # Contract: config cache refresh must be followed by PHP runtime restart.
 grep -Fq 'Restart PHP runtime after cache refresh' "$R" || { echo '[ERROR] Missing PHP runtime restart contract'; exit 1; }
 grep -Fq 'deploy_restart_php_runtime_path' "$R" || { echo '[ERROR] Missing PHP runtime restart helper call'; exit 1; }
+
+# Contract: Nginx/web must refresh FastCGI upstream after app restart to avoid 502.
+grep -Fq 'deploy_restart_web_proxy_path "$project_dir" "$timeout"' "$R" || { echo '[ERROR] Missing web upstream refresh after app restart'; exit 1; }
+grep -Fq 'Restart web để refresh FastCGI upstream sau app restart' "$R" || { echo '[ERROR] Missing web restart contract'; exit 1; }
 
 # Contract: Laravel must really boot; php-fpm -t / artisan --version alone is insufficient.
 grep -Fq 'php artisan about --no-ansi' "$R" || { echo '[ERROR] Missing Laravel boot verification'; exit 1; }
@@ -127,4 +132,4 @@ if deploy_verify_application_http_path "$TMP" 0 >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "[OK] Deploy Module v1.2 runtime restart + application HTTP gate"
+echo "[OK] Deploy Module v1.2 runtime restart + web upstream refresh + application HTTP gate"
