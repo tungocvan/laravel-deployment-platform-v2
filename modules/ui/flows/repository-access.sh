@@ -96,6 +96,26 @@ ui_repo_access_show_result() {
   ui_line
 }
 
+ui_repo_access_existing_owner_alias() {
+  local owner="$1" name="$2" candidate effective_host alias_repo
+  UI_REPO_ACCESS_EXISTING_ALIAS=""
+  UI_REPO_ACCESS_EXISTING_REPO=""
+
+  # First try the canonical owner alias used by Platform installations,
+  # e.g. github-tungocvan. Then try a repository-specific alias if it exists.
+  for candidate in "github-$owner" "github-$owner-$name"; do
+    effective_host="$(ssh -G "$candidate" 2>/dev/null | awk '$1=="hostname" {print $2; exit}')"
+    [[ "$effective_host" == "github.com" ]] || continue
+    alias_repo="git@${candidate}:${owner}/${name}.git"
+    if git ls-remote "$alias_repo" >/dev/null 2>&1; then
+      UI_REPO_ACCESS_EXISTING_ALIAS="$candidate"
+      UI_REPO_ACCESS_EXISTING_REPO="$alias_repo"
+      return 0
+    fi
+  done
+  return 1
+}
+
 ui_repo_access_generate_key() {
   local repo="$1" owner="$2" name="$3"
   local ssh_dir key_base key_file alias config_file
@@ -161,6 +181,7 @@ ui_flow_repository_access() {
   echo "  - READ bằng git ls-remote"
   echo "  - WRITE bằng ref tạm refs/platform/write-probe/..."
   echo "  - DELETE bằng cách xóa đúng ref tạm vừa tạo"
+  echo "  - Nếu credential mặc định fail, Platform thử SSH alias owner đã có trước"
   echo "  - Không sửa main, tag, source site, Inventory, deploy hoặc database"
   echo
 
@@ -169,14 +190,14 @@ ui_flow_repository_access() {
 
   if ui_repo_access_probe "$repo"; then
     ui_repo_access_show_result
-    echo "[OK] Repository có đủ quyền READ + WRITE + DELETE."
+    echo "[OK] Repository có đủ quyền READ + WRITE + DELETE bằng credential hiện tại."
     ui_pause
     return 0
   fi
   ui_repo_access_show_result
 
   if ! ui_repo_access_parse_github "$repo"; then
-    echo "[WARN] Tự tạo GitHub SSH key hiện chỉ hỗ trợ URL github.com."
+    echo "[WARN] Tự động nhận diện SSH identity hiện chỉ hỗ trợ URL github.com."
     echo "[INFO] Hãy cấu hình credential của Git server này thủ công rồi kiểm tra lại."
     ui_pause
     return 1
@@ -184,8 +205,22 @@ ui_flow_repository_access() {
   owner="$UI_REPO_OWNER"
   name="$UI_REPO_NAME"
 
+  if ui_repo_access_existing_owner_alias "$owner" "$name"; then
+    echo
+    echo "[INFO] Phát hiện SSH alias đã có cho owner: $UI_REPO_ACCESS_EXISTING_ALIAS"
+    echo "[INFO] Kiểm tra lại bằng: $UI_REPO_ACCESS_EXISTING_REPO"
+    if ui_repo_access_probe "$UI_REPO_ACCESS_EXISTING_REPO"; then
+      ui_repo_access_show_result
+      echo "[OK] Repository có đủ READ + WRITE + DELETE bằng SSH alias hiện có."
+      echo "[INFO] Không cần tạo SSH key mới."
+      ui_pause
+      return 0
+    fi
+    ui_repo_access_show_result
+  fi
+
   echo
-  echo "Repository chưa đủ quyền ghi/xóa bằng credential hiện tại."
+  echo "Repository vẫn chưa đủ quyền ghi/xóa sau khi thử credential/alias hiện có."
   ui_yesno "Tạo SSH key riêng cho ${owner}/${name} để cấu hình quyền?" "N" || { ui_pause; return 0; }
 
   command -v ssh-keygen >/dev/null 2>&1 || {
