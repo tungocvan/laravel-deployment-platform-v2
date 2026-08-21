@@ -13,6 +13,9 @@ source "$PLATFORM_HOME/modules/ui/menus/deploy.sh"
 source "$PLATFORM_HOME/modules/ui/menus/doctor.sh"
 source "$PLATFORM_HOME/modules/ui/menus/infrastructure.sh"
 source "$PLATFORM_HOME/modules/ui/menus/packages.sh"
+# Loaded last on purpose: this overrides the legacy terse ui_main() from ui.sh
+# with the descriptive Platform 2.1 operations console + quick guide.
+source "$PLATFORM_HOME/modules/ui/menus/main.sh"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   cat <<'EOF'
@@ -21,7 +24,8 @@ USAGE
   platform-v2 menu
   platform-v2 ui
 
-Simple interactive frontend over existing Platform commands.
+Interactive operations console over existing Platform commands.
+Menu labels describe the contained operations and include an in-console quick guide.
 EOF
   exit 0
 fi
