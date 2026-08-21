@@ -29,7 +29,7 @@ test-git:
 	bash modules/git/tests/test-git.sh
 
 test-deploy:
-	bash modules/deploy/tests/test-deploy.sh
+	PLATFORM_HOME="$(CURDIR)" bash modules/deploy/tests/test-deploy.sh
 
 test-doctor:
 	bash modules/doctor/tests/test-doctor.sh
