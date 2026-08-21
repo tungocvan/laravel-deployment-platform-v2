@@ -4,6 +4,7 @@ SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 ROOT="${PLATFORM_HOME:-$SCRIPT_ROOT}"
 FILE="$ROOT/modules/git/lib/git.sh"
 MIGRATE="$ROOT/modules/git/commands/migrate-remote.sh"
+UPDATE="$ROOT/modules/git/commands/update.sh"
 HELP="$ROOT/modules/git/commands/help.sh"
 
 for fn in \
@@ -29,6 +30,16 @@ grep -q 'inventory_sync' "$MIGRATE"
 grep -q 'platform_audit_try "git" "migrate-remote"' "$MIGRATE"
 ! grep -Eq 'reset --hard|pull |checkout -f|switch -f' "$MIGRATE"
 grep -q 'migrate-remote <site>' "$HELP"
+
+# A successful fast-forward must immediately reconcile Inventory Git metadata.
+grep -q 'inventory_sync "$site"' "$UPDATE"
+grep -q 'Inventory synced' "$UPDATE"
+merge_line="$(grep -n 'merge --ff-only' "$UPDATE" | head -n1 | cut -d: -f1)"
+verify_line="$(grep -n 'platform_git_verify "$path"' "$UPDATE" | tail -n1 | cut -d: -f1)"
+sync_line="$(grep -n 'inventory_sync "$site"' "$UPDATE" | tail -n1 | cut -d: -f1)"
+[[ -n "$merge_line" && -n "$verify_line" && -n "$sync_line" ]]
+(( sync_line > merge_line ))
+(( sync_line > verify_line ))
 
 assert_git_verify_error() {
   local expected_exit="$1"
@@ -59,4 +70,5 @@ assert_git_verify_error 3 GIT.PATH_NOT_FOUND "$TMP_DIR/missing"
 mkdir -p "$TMP_DIR/not-repo"
 assert_git_verify_error 3 GIT.NOT_REPOSITORY "$TMP_DIR/not-repo"
 
-echo "[OK] Git Module helpers + safe remote migration contract"
+bash -n "$UPDATE"
+echo "[OK] Git Module helpers + safe remote migration + update Inventory sync contract"
