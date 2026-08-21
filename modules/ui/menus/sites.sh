@@ -66,7 +66,7 @@ EOF
 
 ui_flow_create() {
   local name domain repo branch ssl=1
-  local default_repo="${PLATFORM_DEFAULT_SITE_REPO:-git@github.com:vhdtshop-ux/source-laravel-12.git}"
+  local default_repo="${PLATFORM_DEFAULT_SITE_REPO:-git@github.com:tungocvan/laravel-shop.git}"
 
   name="$(ui_prompt "Tên site mới")"
   [[ -n "$name" ]] || { echo "[ERROR] Tên site bắt buộc."; ui_pause; return; }
