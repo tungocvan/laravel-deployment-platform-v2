@@ -44,9 +44,14 @@ status_blocking="$(
     ':(exclude)compose.scheduler.yaml'
 )"
 if [[ -n "$status_blocking" ]]; then
-  echo "[ERROR] Working tree có thay đổi source cần xử lý trước khi migrate remote:"
-  printf '%s\n' "$status_blocking"
-  platform_die "$PLATFORM_EXIT_CONFLICT" "GIT.WORKTREE_DIRTY" "Working tree source không sạch. Commit/stash thay đổi source trước khi migrate remote."
+  if (( require_compatible_main == 1 )); then
+    echo "[WARN] Working tree có thay đổi source; compatible-main chỉ đổi địa chỉ origin nên các thay đổi này sẽ được giữ nguyên:"
+    printf '%s\n' "$status_blocking"
+  else
+    echo "[ERROR] Working tree có thay đổi source cần xử lý trước khi migrate remote:"
+    printf '%s\n' "$status_blocking"
+    platform_die "$PLATFORM_EXIT_CONFLICT" "GIT.WORKTREE_DIRTY" "Working tree source không sạch. Commit/stash thay đổi source trước khi migrate remote."
+  fi
 fi
 
 if [[ "$current_repo" == "$target_repo" ]]; then
@@ -135,6 +140,11 @@ Main lineage : COMPATIBLE ($main_relation)
 Rule         : old/main is ancestor of new/main
 Mode         : REPOSITORY ADDRESS CHANGE ONLY
 EOF
+  if [[ -n "$status_blocking" ]]; then
+    echo "Worktree     : DIRTY (PRESERVED; origin URL only)"
+  else
+    echo "Worktree     : CLEAN"
+  fi
 fi
 cat <<EOF
 Action       : CHANGE ORIGIN ONLY
