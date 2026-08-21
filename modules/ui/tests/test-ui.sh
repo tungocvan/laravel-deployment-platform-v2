@@ -37,4 +37,11 @@ grep -q 'git bootstrap-remote.*--yes' "$ROOT/modules/ui/menus/sites.sh"
 grep -q 'Push old/main -> new/main và verify SHA + tree 100%' "$ROOT/modules/ui/menus/sites.sh"
 grep -q 'Origin của site chỉ thay đổi sau khi push và verify thành công' "$ROOT/modules/ui/menus/sites.sh"
 
-echo "[OK] Interactive UI dev.5 + compatible-main update + empty repository bootstrap flow"
+grep -q '17) Đồng bộ 2 kho Git' "$ROOT/modules/ui/menus/sites.sh"
+grep -q '^ui_flow_sync_repositories()' "$ROOT/modules/ui/menus/sites.sh"
+grep -q 'git sync-repositories.*--dry-run' "$ROOT/modules/ui/menus/sites.sh"
+grep -q 'git sync-repositories.*--yes' "$ROOT/modules/ui/menus/sites.sh"
+grep -q 'Target ahead hoặc diverged: BLOCK' "$ROOT/modules/ui/menus/sites.sh"
+grep -q 'Không force-push, không tự merge, không sync ngược' "$ROOT/modules/ui/menus/sites.sh"
+
+echo "[OK] Interactive UI dev.5 + compatible-main + bootstrap + repository sync flow"
