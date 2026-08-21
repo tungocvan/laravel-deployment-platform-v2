@@ -23,22 +23,25 @@ do
 done
 
 # Contract: config cache refresh must be followed by PHP runtime restart.
-grep -q 'Restart PHP runtime after cache refresh' "$R" || exit 1
-grep -q 'deploy_restart_php_runtime_path' "$R" || exit 1
+grep -Fq 'Restart PHP runtime after cache refresh' "$R" || { echo '[ERROR] Missing PHP runtime restart contract'; exit 1; }
+grep -Fq 'deploy_restart_php_runtime_path' "$R" || { echo '[ERROR] Missing PHP runtime restart helper call'; exit 1; }
 
 # Contract: Laravel must really boot; php-fpm -t / artisan --version alone is insufficient.
-grep -q 'php artisan about --no-ansi' "$R" || exit 1
+grep -Fq 'php artisan about --no-ansi' "$R" || { echo '[ERROR] Missing Laravel boot verification'; exit 1; }
 
 # Contract: deploy success requires a real local 2xx/3xx HTTP response.
-grep -q "\^\[23\]\[0-9\]\[0-9\]\$" "$R" || exit 1
-grep -q 'Application HTTP verification failed' "$R" || exit 1
+grep -Fq '^[23][0-9][0-9]$' "$R" || { echo '[ERROR] Missing HTTP 2xx/3xx acceptance contract'; exit 1; }
+grep -Fq 'Application HTTP verification failed' "$R" || { echo '[ERROR] Missing HTTP failure contract'; exit 1; }
 
 # Runtime guard must be active for run/health/optimize entry points.
 for cmd in run health optimize; do
-  grep -q 'modules/deploy/lib/runtime-health.sh' "$ROOT/modules/deploy/commands/$cmd.sh" || exit 1
+  grep -Fq 'modules/deploy/lib/runtime-health.sh' "$ROOT/modules/deploy/commands/$cmd.sh" || {
+    echo "[ERROR] Runtime guard not sourced by $cmd"
+    exit 1
+  }
 done
 
-[[ -x "$ROOT/modules/deploy/commands/frontend.sh" ]] || exit 1
+[[ -x "$ROOT/modules/deploy/commands/frontend.sh" ]] || { echo '[ERROR] frontend command is not executable'; exit 1; }
 bash -n "$F"
 bash -n "$R"
 bash -n "$ROOT/modules/deploy/commands/run.sh"
@@ -97,9 +100,9 @@ PORT200="$(free_port)"
 printf 'ok\n' > "$TMP/index.html"
 python3 -m http.server "$PORT200" --bind 127.0.0.1 --directory "$TMP" >/dev/null 2>&1 &
 PIDS+=("$!")
-wait_port "$PORT200"
+wait_port "$PORT200" || { echo '[ERROR] HTTP 200 fixture did not start'; exit 1; }
 printf 'HTTP_PORT=%s\n' "$PORT200" > "$TMP/.docker-platform.env"
-deploy_verify_application_http_path "$TMP" 2 >/dev/null
+deploy_verify_application_http_path "$TMP" 2 >/dev/null || { echo '[ERROR] HTTP 200 fixture must pass'; exit 1; }
 
 PORT500="$(free_port)"
 cat > "$TMP/server500.py" <<'PY'
@@ -116,10 +119,10 @@ HTTPServer(('127.0.0.1', int(sys.argv[1])), Handler).serve_forever()
 PY
 python3 "$TMP/server500.py" "$PORT500" >/dev/null 2>&1 &
 PIDS+=("$!")
-wait_port "$PORT500"
+wait_port "$PORT500" || { echo '[ERROR] HTTP 500 fixture did not start'; exit 1; }
 printf 'HTTP_PORT=%s\n' "$PORT500" > "$TMP/.docker-platform.env"
 
-if ( deploy_verify_application_http_path "$TMP" 0 >/dev/null 2>&1 ); then
+if deploy_verify_application_http_path "$TMP" 0 >/dev/null 2>&1; then
   echo '[ERROR] HTTP 500 must block deploy health'
   exit 1
 fi
