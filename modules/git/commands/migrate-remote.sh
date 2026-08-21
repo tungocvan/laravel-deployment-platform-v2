@@ -24,6 +24,39 @@ for arg in "$@"; do
 done
 [[ -n "$target_repo" ]] || platform_die "$PLATFORM_EXIT_USAGE" "GIT.TARGET_REMOTE_REQUIRED" "Target repository không được rỗng."
 
+# Legacy GitHub SSH aliases such as github-source-laravel12 may disappear from
+# ~/.ssh/config while the repository itself still exists. For read-only remote
+# verification, retry only github-* aliases through github.com and preserve the
+# owner/repository path exactly. Never rewrite arbitrary hosts.
+github_read_fallback() {
+  local repo="$1" host path
+  case "$repo" in
+    git@github-*:*)
+      host="${repo#git@}"
+      host="${host%%:*}"
+      path="${repo#*:}"
+      [[ "$host" == github-* && "$path" == */* ]] || return 1
+      printf 'git@github.com:%s\n' "$path"
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+repo_main_for_read() {
+  local repo="$1" head fallback
+  head="$(git ls-remote --heads "$repo" refs/heads/main 2>/dev/null | awk 'NR==1 {print $1}')"
+  if [[ -n "$head" ]]; then
+    printf '%s\t%s\n' "$repo" "$head"
+    return 0
+  fi
+
+  fallback="$(github_read_fallback "$repo" 2>/dev/null || true)"
+  [[ -n "$fallback" ]] || return 1
+  head="$(git ls-remote --heads "$fallback" refs/heads/main 2>/dev/null | awk 'NR==1 {print $1}')"
+  [[ -n "$head" ]] || return 1
+  printf '%s\t%s\n' "$fallback" "$head"
+}
+
 path="$(inventory_get_field "$site" path 2>/dev/null || true)"
 [[ -n "$path" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.SITE_NOT_FOUND" "Site không tồn tại trong Inventory: $site"
 platform_git_verify "$path"
@@ -64,22 +97,38 @@ old_main_ref=""
 new_main_ref=""
 old_main_head=""
 new_main_head=""
+old_repo_read="$current_repo"
+new_repo_read="$target_repo"
 if (( require_compatible_main == 1 )); then
   [[ "$branch" == "main" ]] || platform_die "$PLATFORM_EXIT_CONFLICT" "GIT.STRICT_MAIN_BRANCH_REQUIRED" \
     "Update kho mới chỉ áp dụng khi working tree đang ở branch main; hiện tại: $branch"
 
-  old_main_head="$(git ls-remote --heads "$current_repo" refs/heads/main | awk 'NR==1 {print $1}')"
-  [[ -n "$old_main_head" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.CURRENT_MAIN_NOT_FOUND" \
+  old_resolved="$(repo_main_for_read "$current_repo" 2>/dev/null || true)"
+  [[ -n "$old_resolved" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.CURRENT_MAIN_NOT_FOUND" \
     "Không đọc được branch main của kho hiện tại: $current_repo"
+  old_repo_read="${old_resolved%%$'\t'*}"
+  old_main_head="${old_resolved#*$'\t'}"
+  if [[ "$old_repo_read" != "$current_repo" ]]; then
+    echo "[WARN] SSH alias kho hiện tại không truy cập được; dùng GitHub canonical transport chỉ để VERIFY:"
+    echo "       $current_repo"
+    echo "    -> $old_repo_read"
+  fi
 
-  new_main_head="$(git ls-remote --heads "$target_repo" refs/heads/main | awk 'NR==1 {print $1}')"
-  [[ -n "$new_main_head" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.TARGET_MAIN_NOT_FOUND" \
+  new_resolved="$(repo_main_for_read "$target_repo" 2>/dev/null || true)"
+  [[ -n "$new_resolved" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.TARGET_MAIN_NOT_FOUND" \
     "Không đọc được branch main của kho mới: $target_repo"
+  new_repo_read="${new_resolved%%$'\t'*}"
+  new_main_head="${new_resolved#*$'\t'}"
+  if [[ "$new_repo_read" != "$target_repo" ]]; then
+    echo "[WARN] SSH alias kho mới không truy cập được; dùng GitHub canonical transport chỉ để VERIFY:"
+    echo "       $target_repo"
+    echo "    -> $new_repo_read"
+  fi
 
   old_main_ref="refs/platform/repository-check/old-main"
   new_main_ref="refs/platform/repository-check/new-main"
-  git -C "$path" fetch --no-tags "$current_repo" "refs/heads/main:$old_main_ref" >/dev/null
-  git -C "$path" fetch --no-tags "$target_repo" "refs/heads/main:$new_main_ref" >/dev/null
+  git -C "$path" fetch --no-tags "$old_repo_read" "refs/heads/main:$old_main_ref" >/dev/null
+  git -C "$path" fetch --no-tags "$new_repo_read" "refs/heads/main:$new_main_ref" >/dev/null
   trap 'git -C "$path" update-ref -d "$old_main_ref" >/dev/null 2>&1 || true; git -C "$path" update-ref -d "$new_main_ref" >/dev/null 2>&1 || true; git -C "$path" update-ref -d "refs/platform/migrate-remote/$branch" >/dev/null 2>&1 || true' EXIT
 
   if ! git -C "$path" merge-base --is-ancestor "$old_main_ref" "$new_main_ref" >/dev/null 2>&1; then
@@ -100,11 +149,11 @@ EOF
   fi
 fi
 
-target_branch_head="$(git ls-remote --heads "$target_repo" "refs/heads/$branch" | awk 'NR==1 {print $1}')"
+target_branch_head="$(git ls-remote --heads "$new_repo_read" "refs/heads/$branch" 2>/dev/null | awk 'NR==1 {print $1}')"
 [[ -n "$target_branch_head" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.TARGET_BRANCH_NOT_FOUND" "Target repository không có branch $branch hoặc không thể truy cập: $target_repo"
 
 temp_ref="refs/platform/migrate-remote/$branch"
-git -C "$path" fetch --no-tags "$target_repo" "refs/heads/$branch:$temp_ref" >/dev/null
+git -C "$path" fetch --no-tags "$new_repo_read" "refs/heads/$branch:$temp_ref" >/dev/null
 if (( require_compatible_main == 0 )); then
   trap 'git -C "$path" update-ref -d "$temp_ref" >/dev/null 2>&1 || true' EXIT
 fi
