@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-PLATFORM_HOME="${PLATFORM_HOME:-/opt/laravel-deployment-platform}"
+PLATFORM_HOME="${PLATFORM_HOME:-/opt/laravel-deployment-platform-v2}"
 VERSION_FILE="$PLATFORM_HOME/VERSION"
 INVENTORY_FILE="${INVENTORY_FILE:-$PLATFORM_HOME/state/sites.json}"
 
