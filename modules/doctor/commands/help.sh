@@ -7,10 +7,14 @@ USAGE
   platform doctor <command> [options]
 
 COMMANDS
+  site <site>
+      Kiểm tra managed site hiện hữu: Inventory/path/Git metadata,
+      Docker critical services, worker health và backup status.
+
   domain <domain> [options]
       Kiểm tra domain/identity có sẵn sàng để provision hoặc restore-as-new.
 
-OPTIONS
+OPTIONS FOR domain
   --name=<site-name>
       Kiểm tra site name và project path dự kiến.
 
@@ -32,6 +36,8 @@ OPTIONS
       Bỏ DNS lookup.
 
 EXAMPLES
+  sudo platform doctor site tnv
+
   sudo platform doctor domain ntd.tungocvan.com
 
   sudo platform doctor domain ntd.tungocvan.com \
