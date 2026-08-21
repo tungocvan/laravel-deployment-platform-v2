@@ -9,6 +9,7 @@ for f in \
   "$ROOT/modules/ui/menus/infrastructure.sh" \
   "$ROOT/modules/ui/menus/backup.sh" \
   "$ROOT/modules/ui/menus/sites.sh" \
+  "$ROOT/modules/ui/flows/bootstrap-repository.sh" \
   "$ROOT/modules/ui/commands/menu.sh"
 do
   [[ -f "$f" ]] || { echo "[ERROR] Missing: $f"; exit 1; }
@@ -31,11 +32,14 @@ grep -q -- '--require-compatible-main --yes' "$ROOT/modules/ui/menus/sites.sh"
 grep -q 'Kho mới không cùng dòng source main' "$ROOT/modules/ui/menus/sites.sh"
 
 grep -q 'Khởi tạo kho mới trống từ kho cũ' "$ROOT/modules/ui/menus/sites.sh"
-grep -q '^ui_flow_bootstrap_repository()' "$ROOT/modules/ui/menus/sites.sh"
-grep -q 'git bootstrap-remote.*--dry-run' "$ROOT/modules/ui/menus/sites.sh"
-grep -q 'git bootstrap-remote.*--yes' "$ROOT/modules/ui/menus/sites.sh"
-grep -q 'Push old/main -> new/main và verify SHA + tree 100%' "$ROOT/modules/ui/menus/sites.sh"
-grep -q 'Origin của site chỉ thay đổi sau khi push và verify thành công' "$ROOT/modules/ui/menus/sites.sh"
+grep -q 'source "$PLATFORM_HOME/modules/ui/flows/bootstrap-repository.sh"' "$ROOT/modules/ui/commands/menu.sh"
+grep -q '^ui_flow_bootstrap_repository()' "$ROOT/modules/ui/flows/bootstrap-repository.sh"
+grep -q -- '--replace-existing --dry-run' "$ROOT/modules/ui/flows/bootstrap-repository.sh"
+grep -q -- '--replace-existing --yes' "$ROOT/modules/ui/flows/bootstrap-repository.sh"
+grep -q 'Cho phép kiểm tra lại với chế độ REPLACE target/main' "$ROOT/modules/ui/flows/bootstrap-repository.sh"
+grep -q 'Nhập chính xác URL repo đích' "$ROOT/modules/ui/flows/bootstrap-repository.sh"
+grep -q 'Branch/tag khác của kho đích KHÔNG bị xóa' "$ROOT/modules/ui/flows/bootstrap-repository.sh"
+grep -q 'force-with-lease' "$ROOT/modules/ui/flows/bootstrap-repository.sh"
 
 grep -q '17) Đồng bộ 2 kho Git' "$ROOT/modules/ui/menus/sites.sh"
 grep -q '^ui_flow_sync_repositories()' "$ROOT/modules/ui/menus/sites.sh"
@@ -44,4 +48,4 @@ grep -q 'git sync-repositories.*--yes' "$ROOT/modules/ui/menus/sites.sh"
 grep -q 'Target ahead hoặc diverged: BLOCK' "$ROOT/modules/ui/menus/sites.sh"
 grep -q 'Không force-push, không tự merge, không sync ngược' "$ROOT/modules/ui/menus/sites.sh"
 
-echo "[OK] Interactive UI dev.5 + compatible-main + bootstrap + repository sync flow"
+echo "[OK] Interactive UI dev.5 + compatible-main + bootstrap replace-existing + repository sync flow"

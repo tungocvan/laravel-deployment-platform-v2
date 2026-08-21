@@ -43,9 +43,18 @@ grep -q -- '--require-compatible-main' "$HELP"
 [[ -x "$BOOTSTRAP" ]]
 [[ -f "$BOOTSTRAP_LIB" ]]
 grep -q 'bootstrap-remote <site>' "$HELP"
+grep -q -- '--replace-existing' "$HELP"
+grep -q -- '--replace-existing' "$BOOTSTRAP_LIB"
 grep -q 'target_refs=' "$BOOTSTRAP_LIB"
 grep -q 'GIT.TARGET_NOT_EMPTY' "$BOOTSTRAP_LIB"
+grep -q 'GIT.TARGET_MAIN_MISSING' "$BOOTSTRAP_LIB"
 grep -q 'refs/platform/write-probe/bootstrap-main' "$BOOTSTRAP_LIB"
+grep -q 'refs/platform/bootstrap-backup/main-' "$BOOTSTRAP_LIB"
+grep -q 'GIT.TARGET_BACKUP_FAILED' "$BOOTSTRAP_LIB"
+grep -q 'GIT.BOOTSTRAP_REPLACE_FAILED' "$BOOTSTRAP_LIB"
+grep -q -- '--force-with-lease="refs/heads/main:$target_main_head"' "$BOOTSTRAP_LIB"
+! grep -Eq -- 'push[[:space:]]+--force([[:space:]]|$)' "$BOOTSTRAP_LIB"
+grep -q 'Other refs   : .*PRESERVED' "$BOOTSTRAP_LIB"
 grep -q 'GIT.TARGET_NOT_WRITABLE' "$BOOTSTRAP_LIB"
 grep -q 'GIT.TARGET_DELETE_DENIED' "$BOOTSTRAP_LIB"
 grep -q 'refs/heads/main' "$BOOTSTRAP_LIB"
@@ -62,7 +71,6 @@ grep -q '/root/.ssh/github_tungocvan_ed25519' "$BOOTSTRAP_LIB"
 grep -q '^target_git()' "$BOOTSTRAP_LIB"
 grep -q 'GIT_SSH_COMMAND="$target_ssh_command" git' "$BOOTSTRAP_LIB"
 grep -q 'target_git ls-remote "$target_repo"' "$BOOTSTRAP_LIB"
-grep -q 'target_git -C "$path" push "$target_repo"' "$BOOTSTRAP_LIB"
 grep -q 'target_git -C "$path" fetch --prune origin' "$BOOTSTRAP_LIB"
 ! grep -q 'github-tungocvan' "$BOOTSTRAP_LIB"
 
@@ -75,7 +83,6 @@ sync_bootstrap_line="$(grep -n 'inventory_sync "$site"' "$BOOTSTRAP_LIB" | tail 
 (( remote_line > sha_line ))
 (( sync_bootstrap_line > remote_line ))
 
-# Repository sync is source -> target, main-only, no force and no site/runtime mutation.
 [[ -x "$SYNC" ]]
 [[ -f "$SYNC_LIB" ]]
 grep -q 'sync-repositories --from=' "$HELP"
@@ -89,7 +96,6 @@ grep -q 'GIT.SYNC_TREE_MISMATCH' "$SYNC_LIB"
 grep -q 'Force push   : NO' "$SYNC_LIB"
 grep -q 'Site origin  : NO CHANGE' "$SYNC_LIB"
 grep -q 'Inventory    : NO CHANGE' "$SYNC_LIB"
-# Dry-run/execute plan must expose exactly what would move before any push.
 grep -q 'Commits sync :' "$SYNC_LIB"
 grep -q 'Files change :' "$SYNC_LIB"
 grep -q 'COMMITS SẼ ĐỒNG BỘ' "$SYNC_LIB"
@@ -100,7 +106,6 @@ grep -q 'tối đa 30 commit' "$SYNC_LIB"
 grep -q 'tối đa 50 file' "$SYNC_LIB"
 ! grep -Eq -- '--force|force-with-lease|reset --hard|pull |checkout -f|switch -f|remote set-url|inventory_sync|deploy run|docker compose' "$SYNC_LIB"
 
-# A successful fast-forward must immediately reconcile Inventory Git metadata.
 grep -q 'inventory_sync "$site"' "$UPDATE"
 grep -q 'Inventory synced' "$UPDATE"
 merge_line="$(grep -n 'merge --ff-only' "$UPDATE" | head -n1 | cut -d: -f1)"
@@ -135,4 +140,4 @@ bash -n "$BOOTSTRAP_LIB"
 bash -n "$SYNC"
 bash -n "$SYNC_LIB"
 bash -n "$UPDATE"
-echo "[OK] Git Module helpers + compatible-main + bootstrap + repository sync change preview + Inventory sync contract"
+echo "[OK] Git Module helpers + compatible-main + bootstrap replace-existing + repository sync preview + Inventory sync contract"
