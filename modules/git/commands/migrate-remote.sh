@@ -7,14 +7,16 @@ source "$PLATFORM_HOME/modules/site/lib/repository.sh"
 
 site="${1:-}"
 shift || true
-[[ -n "$site" ]] || platform_die "$PLATFORM_EXIT_USAGE" "GIT.ARGUMENT_REQUIRED" "USAGE: platform-v2 git migrate-remote <site> [--to=<repo>] [--dry-run] [--yes]"
+[[ -n "$site" ]] || platform_die "$PLATFORM_EXIT_USAGE" "GIT.ARGUMENT_REQUIRED" "USAGE: platform-v2 git migrate-remote <site> [--to=<repo>] [--require-identical-main] [--dry-run] [--yes]"
 
 target_repo="$(site_default_repo)"
 dry_run=0
 yes=0
+require_identical_main=0
 for arg in "$@"; do
   case "$arg" in
     --to=*) target_repo="${arg#*=}" ;;
+    --require-identical-main) require_identical_main=1 ;;
     --dry-run) dry_run=1 ;;
     --yes) yes=1 ;;
     *) platform_die "$PLATFORM_EXIT_USAGE" "GIT.INVALID_OPTION" "Option không hợp lệ: $arg" ;;
@@ -53,6 +55,35 @@ if [[ "$current_repo" == "$target_repo" ]]; then
   exit 0
 fi
 
+if (( require_identical_main == 1 )); then
+  [[ "$branch" == "main" ]] || platform_die "$PLATFORM_EXIT_CONFLICT" "GIT.STRICT_MAIN_BRANCH_REQUIRED" \
+    "Update kho mới chỉ áp dụng khi working tree đang ở branch main; hiện tại: $branch"
+
+  old_main_head="$(git ls-remote --heads "$current_repo" refs/heads/main | awk 'NR==1 {print $1}')"
+  [[ -n "$old_main_head" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.CURRENT_MAIN_NOT_FOUND" \
+    "Không đọc được branch main của kho hiện tại: $current_repo"
+
+  new_main_head="$(git ls-remote --heads "$target_repo" refs/heads/main | awk 'NR==1 {print $1}')"
+  [[ -n "$new_main_head" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.TARGET_MAIN_NOT_FOUND" \
+    "Không đọc được branch main của kho mới: $target_repo"
+
+  if [[ "$old_main_head" != "$new_main_head" ]]; then
+    cat <<EOF
+=========================================================
+REPOSITORY IDENTITY CHECK — FAILED
+=========================================================
+Current repo : $current_repo
+Current main : $old_main_head
+New repo     : $target_repo
+New main     : $new_main_head
+Identical    : NO
+=========================================================
+EOF
+    platform_die "$PLATFORM_EXIT_CONFLICT" "GIT.MAIN_NOT_IDENTICAL" \
+      "Kho cũ và kho mới không giống nhau 100% ở branch main. Từ chối thay đổi địa chỉ repository."
+  fi
+fi
+
 # Read-only target verification. Do not mutate origin before all guards pass.
 target_branch_head="$(git ls-remote --heads "$target_repo" "refs/heads/$branch" | awk 'NR==1 {print $1}')"
 [[ -n "$target_branch_head" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.TARGET_BRANCH_NOT_FOUND" "Target repository không có branch $branch hoặc không thể truy cập: $target_repo"
@@ -82,6 +113,16 @@ Target repo  : $target_repo
 Target HEAD  : $target_branch_head
 Ahead        : $ahead
 Behind       : $behind
+EOF
+if (( require_identical_main == 1 )); then
+  cat <<EOF
+Old main     : $old_main_head
+New main     : $new_main_head
+Main equal   : YES (100% same commit)
+Mode         : REPOSITORY ADDRESS CHANGE ONLY
+EOF
+fi
+cat <<EOF
 Action       : CHANGE ORIGIN ONLY
 Code update  : NO
 Deploy       : NO
@@ -116,6 +157,16 @@ if [[ -z "$origin_head" ]] || ! git -C "$path" merge-base --is-ancestor "$old_he
   rollback_remote
   platform_audit_try "git" "migrate-remote" "$site" "failed" "GIT.POST_MIGRATION_VERIFY_FAILED" "" "not-attempted"
   platform_die "$PLATFORM_EXIT_OPERATION" "GIT.POST_MIGRATION_VERIFY_FAILED" "Verify target sau đổi remote thất bại; origin đã rollback về repository cũ."
+fi
+
+if (( require_identical_main == 1 )); then
+  post_main_head="$(git ls-remote --heads origin refs/heads/main 2>/dev/null | awk 'NR==1 {print $1}')"
+  if [[ -z "$post_main_head" || "$post_main_head" != "$old_main_head" ]]; then
+    rollback_remote
+    platform_audit_try "git" "migrate-remote" "$site" "failed" "GIT.POST_MAIN_IDENTITY_FAILED" "" "not-attempted"
+    platform_die "$PLATFORM_EXIT_OPERATION" "GIT.POST_MAIN_IDENTITY_FAILED" \
+      "Main của origin sau thay đổi không còn khớp kho cũ; origin đã rollback."
+  fi
 fi
 
 inventory_sync "$site" >/dev/null
