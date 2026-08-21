@@ -24,4 +24,10 @@ grep -q 'ssl verify "$domain"' "$ROOT/modules/ui/lib/ui.sh"
 grep -q 'git@github.com:tungocvan/laravel-shop.git' "$ROOT/modules/ui/menus/sites.sh"
 ! grep -q 'git@github.com:vhdtshop-ux/source-laravel-12.git' "$ROOT/modules/ui/menus/sites.sh"
 
-echo "[OK] Interactive UI dev.5"
+grep -q 'Update kho mới (main phải giống 100%)' "$ROOT/modules/ui/menus/sites.sh"
+grep -q '^ui_flow_update_repository()' "$ROOT/modules/ui/menus/sites.sh"
+grep -q -- '--require-identical-main --dry-run' "$ROOT/modules/ui/menus/sites.sh"
+grep -q -- '--require-identical-main --yes' "$ROOT/modules/ui/menus/sites.sh"
+grep -q 'Không đủ điều kiện thay đổi repository' "$ROOT/modules/ui/menus/sites.sh"
+
+echo "[OK] Interactive UI dev.5 + strict repository update flow"
