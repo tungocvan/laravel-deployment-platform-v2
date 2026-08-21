@@ -30,4 +30,11 @@ grep -q -- '--require-compatible-main --dry-run' "$ROOT/modules/ui/menus/sites.s
 grep -q -- '--require-compatible-main --yes' "$ROOT/modules/ui/menus/sites.sh"
 grep -q 'Kho mới không cùng dòng source main' "$ROOT/modules/ui/menus/sites.sh"
 
-echo "[OK] Interactive UI dev.5 + compatible-main repository update flow"
+grep -q 'Khởi tạo kho mới trống từ kho cũ' "$ROOT/modules/ui/menus/sites.sh"
+grep -q '^ui_flow_bootstrap_repository()' "$ROOT/modules/ui/menus/sites.sh"
+grep -q 'git bootstrap-remote.*--dry-run' "$ROOT/modules/ui/menus/sites.sh"
+grep -q 'git bootstrap-remote.*--yes' "$ROOT/modules/ui/menus/sites.sh"
+grep -q 'Push old/main -> new/main và verify SHA + tree 100%' "$ROOT/modules/ui/menus/sites.sh"
+grep -q 'Origin của site chỉ thay đổi sau khi push và verify thành công' "$ROOT/modules/ui/menus/sites.sh"
+
+echo "[OK] Interactive UI dev.5 + compatible-main update + empty repository bootstrap flow"
