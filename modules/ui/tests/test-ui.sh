@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-ROOT="${PLATFORM_HOME:-/opt/laravel-deployment-platform-v2}"
+
+SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ROOT="${PLATFORM_HOME:-$SCRIPT_ROOT}"
 
 for f in \
   "$ROOT/modules/ui/lib/ui.sh" \
