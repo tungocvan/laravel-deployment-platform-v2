@@ -125,6 +125,20 @@ EOF
   fi
 fi
 
+commits_to_sync=0
+files_changed=0
+commit_range=""
+diff_from=""
+if [[ "$relation" == "EMPTY" ]]; then
+  commits_to_sync="$(git --git-dir="$bare_repo" rev-list --count "$source_ref")"
+  files_changed="$(git --git-dir="$bare_repo" ls-tree -r --name-only "$source_ref" | wc -l | tr -d ' ')"
+elif [[ "$relation" == "TARGET BEHIND SOURCE" ]]; then
+  commit_range="$target_ref..$source_ref"
+  diff_from="$target_ref"
+  commits_to_sync="$(git --git-dir="$bare_repo" rev-list --count "$commit_range")"
+  files_changed="$(git --git-dir="$bare_repo" diff --name-only "$target_ref" "$source_ref" | wc -l | tr -d ' ')"
+fi
+
 cat <<EOF
 =========================================================
 REPOSITORY SYNC PLAN
@@ -138,6 +152,8 @@ Relation     : $relation
 Direction    : SOURCE -> TARGET
 Branch       : main
 Action       : $action
+Commits sync : $commits_to_sync
+Files change : $files_changed
 Force push   : NO
 Site source  : NO CHANGE
 Site origin  : NO CHANGE
@@ -147,6 +163,32 @@ Database     : NO
 Containers   : NO
 =========================================================
 EOF
+
+if (( commits_to_sync > 0 )); then
+  echo
+  echo '----- COMMITS SẼ ĐỒNG BỘ (tối đa 30 commit mới nhất) -----'
+  if [[ "$relation" == "EMPTY" ]]; then
+    git --git-dir="$bare_repo" log --oneline --decorate=no -30 "$source_ref"
+  else
+    git --git-dir="$bare_repo" log --oneline --decorate=no -30 "$commit_range"
+  fi
+  if (( commits_to_sync > 30 )); then
+    printf '... và %d commit khác.\n' "$((commits_to_sync - 30))"
+  fi
+fi
+
+if (( files_changed > 0 )); then
+  echo
+  echo '----- FILES SẼ THAY ĐỔI (tối đa 50 file) -----'
+  if [[ "$relation" == "EMPTY" ]]; then
+    git --git-dir="$bare_repo" ls-tree -r --name-only "$source_ref" | head -50 | sed 's/^/A\t/'
+  else
+    git --git-dir="$bare_repo" diff --name-status "$diff_from" "$source_ref" | head -50
+  fi
+  if (( files_changed > 50 )); then
+    printf '... và %d file khác.\n' "$((files_changed - 50))"
+  fi
+fi
 
 if (( dry_run == 1 )); then
   echo "[DRY-RUN] Điều kiện sync hợp lệ; chưa có repository nào bị thay đổi."
