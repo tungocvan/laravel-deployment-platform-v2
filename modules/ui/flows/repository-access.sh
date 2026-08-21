@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Repository access diagnostics are intentionally isolated from site state:
+# probes use a temporary ref only, and generated private keys are never printed.
 ui_repo_access_parse_github() {
   local repo="$1"
   if [[ "$repo" =~ ^git@github\.com:([^/]+)/([^/]+)$ ]]; then
