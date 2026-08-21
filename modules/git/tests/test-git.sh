@@ -4,6 +4,8 @@ SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 ROOT="${PLATFORM_HOME:-$SCRIPT_ROOT}"
 FILE="$ROOT/modules/git/lib/git.sh"
 MIGRATE="$ROOT/modules/git/commands/migrate-remote.sh"
+BOOTSTRAP="$ROOT/modules/git/commands/bootstrap-remote.sh"
+BOOTSTRAP_LIB="$ROOT/modules/git/lib/bootstrap-remote.sh"
 UPDATE="$ROOT/modules/git/commands/update.sh"
 HELP="$ROOT/modules/git/commands/help.sh"
 
@@ -40,6 +42,32 @@ grep -q 'platform_audit_try "git" "migrate-remote"' "$MIGRATE"
 ! grep -Eq 'reset --hard|pull |checkout -f|switch -f' "$MIGRATE"
 grep -q 'migrate-remote <site>' "$HELP"
 grep -q -- '--require-compatible-main' "$HELP"
+
+# Empty repository bootstrap must copy repository/main, verify it, and only then cut over origin.
+[[ -x "$BOOTSTRAP" ]]
+[[ -f "$BOOTSTRAP_LIB" ]]
+grep -q 'bootstrap-remote <site>' "$HELP"
+grep -q 'target_refs=' "$BOOTSTRAP_LIB"
+grep -q 'GIT.TARGET_NOT_EMPTY' "$BOOTSTRAP_LIB"
+grep -q 'refs/platform/write-probe/bootstrap-main' "$BOOTSTRAP_LIB"
+grep -q 'GIT.TARGET_NOT_WRITABLE' "$BOOTSTRAP_LIB"
+grep -q 'GIT.TARGET_DELETE_DENIED' "$BOOTSTRAP_LIB"
+grep -q 'refs/heads/main' "$BOOTSTRAP_LIB"
+grep -q 'GIT.BOOTSTRAP_SHA_MISMATCH' "$BOOTSTRAP_LIB"
+grep -q 'GIT.BOOTSTRAP_TREE_MISMATCH' "$BOOTSTRAP_LIB"
+grep -q 'remote set-url origin' "$BOOTSTRAP_LIB"
+grep -q 'rollback_remote' "$BOOTSTRAP_LIB"
+grep -q 'inventory_sync "$site"' "$BOOTSTRAP_LIB"
+grep -q 'platform_audit_try "git" "bootstrap-remote"' "$BOOTSTRAP_LIB"
+! grep -Eq 'reset --hard|pull |checkout -f|switch -f' "$BOOTSTRAP_LIB"
+push_line="$(grep -n 'source_ref:refs/heads/main' "$BOOTSTRAP_LIB" | head -n1 | cut -d: -f1)"
+sha_line="$(grep -n 'GIT.BOOTSTRAP_SHA_MISMATCH' "$BOOTSTRAP_LIB" | head -n1 | cut -d: -f1)"
+remote_line="$(grep -n 'remote set-url origin' "$BOOTSTRAP_LIB" | tail -n1 | cut -d: -f1)"
+sync_bootstrap_line="$(grep -n 'inventory_sync "$site"' "$BOOTSTRAP_LIB" | tail -n1 | cut -d: -f1)"
+[[ -n "$push_line" && -n "$sha_line" && -n "$remote_line" && -n "$sync_bootstrap_line" ]]
+(( sha_line > push_line ))
+(( remote_line > sha_line ))
+(( sync_bootstrap_line > remote_line ))
 
 # A successful fast-forward must immediately reconcile Inventory Git metadata.
 grep -q 'inventory_sync "$site"' "$UPDATE"
@@ -81,5 +109,7 @@ mkdir -p "$TMP_DIR/not-repo"
 assert_git_verify_error 3 GIT.NOT_REPOSITORY "$TMP_DIR/not-repo"
 
 bash -n "$MIGRATE"
+bash -n "$BOOTSTRAP"
+bash -n "$BOOTSTRAP_LIB"
 bash -n "$UPDATE"
-echo "[OK] Git Module helpers + compatible-main remote update + Inventory sync contract"
+echo "[OK] Git Module helpers + compatible-main remote update + empty repository bootstrap + Inventory sync contract"
