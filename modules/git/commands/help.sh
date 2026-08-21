@@ -39,4 +39,12 @@ COMMANDS
       diverged hoặc thiếu history của kho cũ.
       --require-identical-main được giữ làm alias tương thích cho menu/automation cũ.
       Sau thành công sẽ sync Inventory và ghi audit log.
+
+  bootstrap-remote <site> --to=<empty-git-url> [--dry-run] [--yes]
+      Khởi tạo một repository mới hoàn toàn trống từ main của repository hiện tại.
+      Source chuẩn được đọc trực tiếp từ old repository/main, không lấy source local.
+      Khi --yes: kiểm tra quyền push/delete bằng ref tạm, push old/main -> new/main,
+      verify commit SHA + tree, rồi mới đổi origin của site và sync Inventory.
+      HEAD, working tree, deploy, database và container của site được giữ nguyên.
+      Nếu bất kỳ verify nào thất bại, origin site không đổi hoặc được rollback.
 EOF
