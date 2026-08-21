@@ -11,12 +11,7 @@ SYNC_LIB="$ROOT/modules/git/lib/sync-repositories.sh"
 UPDATE="$ROOT/modules/git/commands/update.sh"
 HELP="$ROOT/modules/git/commands/help.sh"
 
-for fn in \
-  platform_git_normalize_safe_directories \
-  platform_git_trust \
-  platform_git_verify \
-  platform_git_copy_metadata
-do
+for fn in platform_git_normalize_safe_directories platform_git_trust platform_git_verify platform_git_copy_metadata; do
   grep -q "^${fn}()" "$FILE"
 done
 
@@ -45,7 +40,6 @@ grep -q 'platform_audit_try "git" "migrate-remote"' "$MIGRATE"
 grep -q 'migrate-remote <site>' "$HELP"
 grep -q -- '--require-compatible-main' "$HELP"
 
-# Empty repository bootstrap must copy repository/main, verify it, and only then cut over origin.
 [[ -x "$BOOTSTRAP" ]]
 [[ -f "$BOOTSTRAP_LIB" ]]
 grep -q 'bootstrap-remote <site>' "$HELP"
@@ -63,7 +57,6 @@ grep -q 'inventory_sync "$site"' "$BOOTSTRAP_LIB"
 grep -q 'platform_audit_try "git" "bootstrap-remote"' "$BOOTSTRAP_LIB"
 ! grep -Eq 'reset --hard|pull |checkout -f|switch -f' "$BOOTSTRAP_LIB"
 
-# Canonical repository URL is preserved while target transport can select the owner identity.
 grep -q 'PLATFORM_TUNGOCVAN_GITHUB_IDENTITY_FILE' "$BOOTSTRAP_LIB"
 grep -q '/root/.ssh/github_tungocvan_ed25519' "$BOOTSTRAP_LIB"
 grep -q '^target_git()' "$BOOTSTRAP_LIB"
@@ -96,6 +89,15 @@ grep -q 'GIT.SYNC_TREE_MISMATCH' "$SYNC_LIB"
 grep -q 'Force push   : NO' "$SYNC_LIB"
 grep -q 'Site origin  : NO CHANGE' "$SYNC_LIB"
 grep -q 'Inventory    : NO CHANGE' "$SYNC_LIB"
+# Dry-run/execute plan must expose exactly what would move before any push.
+grep -q 'Commits sync :' "$SYNC_LIB"
+grep -q 'Files change :' "$SYNC_LIB"
+grep -q 'COMMITS SẼ ĐỒNG BỘ' "$SYNC_LIB"
+grep -q 'FILES SẼ THAY ĐỔI' "$SYNC_LIB"
+grep -q 'rev-list --count' "$SYNC_LIB"
+grep -q 'diff --name-status' "$SYNC_LIB"
+grep -q 'tối đa 30 commit' "$SYNC_LIB"
+grep -q 'tối đa 50 file' "$SYNC_LIB"
 ! grep -Eq -- '--force|force-with-lease|reset --hard|pull |checkout -f|switch -f|remote set-url|inventory_sync|deploy run|docker compose' "$SYNC_LIB"
 
 # A successful fast-forward must immediately reconcile Inventory Git metadata.
@@ -109,29 +111,19 @@ sync_line="$(grep -n 'inventory_sync "$site"' "$UPDATE" | tail -n1 | cut -d: -f1
 (( sync_line > verify_line ))
 
 assert_git_verify_error() {
-  local expected_exit="$1"
-  local expected_error_id="$2"
+  local expected_exit="$1" expected_error_id="$2"
   shift 2
-
   local output status
   set +e
   output="$(PLATFORM_HOME="$ROOT" "$ROOT/bin/platform" git verify "$@" 2>&1)"
   status=$?
   set -e
-
-  [[ "$status" -eq "$expected_exit" ]] || {
-    printf '[FAIL] git verify expected exit %s, got %s\n%s\n' "$expected_exit" "$status" "$output" >&2
-    exit 1
-  }
-  [[ "$output" == *"[$expected_error_id]"* ]] || {
-    printf '[FAIL] git verify missing error id %s\n%s\n' "$expected_error_id" "$output" >&2
-    exit 1
-  }
+  [[ "$status" -eq "$expected_exit" ]] || { printf '[FAIL] git verify expected exit %s, got %s\n%s\n' "$expected_exit" "$status" "$output" >&2; exit 1; }
+  [[ "$output" == *"[$expected_error_id]"* ]] || { printf '[FAIL] git verify missing error id %s\n%s\n' "$expected_error_id" "$output" >&2; exit 1; }
 }
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
-
 assert_git_verify_error 2 GIT.ARGUMENT_REQUIRED
 assert_git_verify_error 3 GIT.PATH_NOT_FOUND "$TMP_DIR/missing"
 mkdir -p "$TMP_DIR/not-repo"
@@ -143,4 +135,4 @@ bash -n "$BOOTSTRAP_LIB"
 bash -n "$SYNC"
 bash -n "$SYNC_LIB"
 bash -n "$UPDATE"
-echo "[OK] Git Module helpers + compatible-main + bootstrap + repository sync + Inventory sync contract"
+echo "[OK] Git Module helpers + compatible-main + bootstrap + repository sync change preview + Inventory sync contract"
