@@ -2,6 +2,31 @@
 
 Laravel Deployment Platform v2 là nền tảng CLI dạng module để quản lý nhiều website Laravel chạy bằng Docker trên một hoặc nhiều VPS.
 
+## Kiểm tra VPS trước khi cài / vận hành
+
+Sau khi clone hoặc `git pull`, chạy ngay:
+
+```bash
+cd /opt/laravel-deployment-platform-v2
+./check-system.sh
+```
+
+Script kiểm tra Ubuntu, CPU/RAM/disk, Bash/Git/Python/OpenSSH, Docker Engine + Compose v2 + Buildx, Nginx, Certbot nginx plugin, DNS/network, repository layout và CLI installation. Script chỉ đọc trạng thái, **không tự cài package hoặc thay đổi VPS**.
+
+Hướng dẫn cài dependency và sử dụng Platform bằng tiếng Việt:
+
+```bash
+./check-system.sh --help
+```
+
+Exit code:
+
+```text
+0 = READY / không có blocker bắt buộc
+1 = BLOCKED / thiếu dependency hoặc service bắt buộc
+2 = tham số không hợp lệ
+```
+
 ## AI / Developer Handoff
 
 Nếu tiếp nhận dự án ở chat mới, tài khoản khác, Codex hoặc AI/developer khác, hãy đọc theo thứ tự:
