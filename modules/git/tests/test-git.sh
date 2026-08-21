@@ -30,6 +30,9 @@ grep -q 'new_main_ref=' "$MIGRATE"
 grep -q 'GIT.MAIN_LINEAGE_INCOMPATIBLE' "$MIGRATE"
 grep -q 'old/main must be ancestor of new/main' "$MIGRATE"
 grep -q 'Main lineage : COMPATIBLE' "$MIGRATE"
+grep -q 'DIRTY (PRESERVED; origin URL only)' "$MIGRATE"
+grep -q 'compatible-main chỉ đổi địa chỉ origin nên các thay đổi này sẽ được giữ nguyên' "$MIGRATE"
+grep -q 'require_compatible_main == 1' "$MIGRATE"
 grep -q 'merge-base --is-ancestor "$old_main_ref" "$new_main_ref"' "$MIGRATE"
 grep -q 'merge-base --is-ancestor "$old_main_ref" "origin/main"' "$MIGRATE"
 grep -q 'merge-base --is-ancestor' "$MIGRATE"
@@ -67,7 +70,7 @@ assert_git_verify_error() {
     exit 1
   }
   [[ "$output" == *"[$expected_error_id]"* ]] || {
-    printf '[FAIL] git verify missing error id %s\n%s\n' "$expected_error_id" "$output" >&2
+    printf '[FAIL] git verify missing error id %s\n%s\n' "$expected_error_id" "$status" "$output" >&2
     exit 1
   }
 }
@@ -82,4 +85,4 @@ assert_git_verify_error 3 GIT.NOT_REPOSITORY "$TMP_DIR/not-repo"
 
 bash -n "$MIGRATE"
 bash -n "$UPDATE"
-echo "[OK] Git Module helpers + compatible-main remote update + Inventory sync contract"
+echo "[OK] Git Module helpers + compatible-main dirty-preservation + Inventory sync contract"
