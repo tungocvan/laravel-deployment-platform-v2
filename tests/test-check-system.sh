@@ -39,7 +39,7 @@ assert_contains "$HELP_OUTPUT" 'Laravel Deployment Platform v2 — check-system.
 assert_contains "$HELP_OUTPUT" 'HỆ ĐIỀU HÀNH KHUYẾN NGHỊ' 'recommended OS section'
 assert_contains "$HELP_OUTPUT" 'Ubuntu Server 24.04 LTS' 'Ubuntu 24.04 baseline'
 assert_contains "$HELP_OUTPUT" 'CÀI DOCKER CE TỪ OFFICIAL APT REPOSITORY' 'Docker CE install section'
-assert_contains "$HELP_OUTPUT" 'HOST VPS KHÔNG cần cài PHP' 'host/runtime separation'
+assert_contains "$HELP_OUTPUT" 'Host VPS KHÔNG cần cài PHP,' 'host/runtime separation'
 assert_contains "$HELP_OUTPUT" 'platform-v2 0   # SAI' 'invalid direct menu-zero guidance'
 assert_contains "$HELP_OUTPUT" 'INFORMATION.md' 'project handoff document'
 assert_contains "$HELP_OUTPUT" 'docs/VPS-DEPLOYMENT-GUIDE.md' 'VPS deployment guide'
