@@ -30,9 +30,11 @@ COMMANDS
       compose.queue.yaml, compose.socket.yaml, compose.scheduler.yaml).
       Update code không tự chạy Deploy; sau đó dùng `platform deploy run <site>` khi cần.
 
-  migrate-remote <site> [--to=<git-url>] [--dry-run] [--yes]
+  migrate-remote <site> [--to=<git-url>] [--require-identical-main] [--dry-run] [--yes]
       Chuyển origin của managed site sang repository mới một cách an toàn.
       Default target: PLATFORM_DEFAULT_SITE_REPO hoặc canonical Laravel repository.
       Verify target branch/history trước khi đổi remote; không pull/reset/deploy.
+      --require-identical-main: chỉ cho đổi địa chỉ khi site đang ở main và
+      kho cũ/main == kho mới/main cùng exact commit SHA 100%.
       Sau thành công sẽ sync Inventory và ghi audit log.
 EOF
