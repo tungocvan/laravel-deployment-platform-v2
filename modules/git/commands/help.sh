@@ -29,4 +29,10 @@ COMMANDS
       Bỏ qua các runtime artifact do Platform quản lý (.env, .docker-platform.env,
       compose.queue.yaml, compose.socket.yaml, compose.scheduler.yaml).
       Update code không tự chạy Deploy; sau đó dùng `platform deploy run <site>` khi cần.
+
+  migrate-remote <site> [--to=<git-url>] [--dry-run] [--yes]
+      Chuyển origin của managed site sang repository mới một cách an toàn.
+      Default target: PLATFORM_DEFAULT_SITE_REPO hoặc canonical Laravel repository.
+      Verify target branch/history trước khi đổi remote; không pull/reset/deploy.
+      Sau thành công sẽ sync Inventory và ghi audit log.
 EOF
