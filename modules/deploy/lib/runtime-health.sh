@@ -86,7 +86,7 @@ deploy_verify_application_http_path() {
     now="$(date +%s)"
     if (( now - started >= timeout )); then
       echo "[ERROR] Application HTTP: ${code:-000} ($url)"
-      die "Application HTTP verification failed; deploy không được đánh dấu thành công."
+      return 1
     fi
     sleep 2
   done
@@ -151,5 +151,7 @@ deploy_health_path() {
 
   [[ "$errors" -eq 0 ]] || die "Deploy health phát hiện $errors lỗi trước HTTP verification."
 
-  deploy_verify_application_http_path "$project_dir" "${PLATFORM_DEPLOY_HTTP_TIMEOUT:-60}"
+  if ! deploy_verify_application_http_path "$project_dir" "${PLATFORM_DEPLOY_HTTP_TIMEOUT:-60}"; then
+    die "Application HTTP verification failed; deploy không được đánh dấu thành công."
+  fi
 }
