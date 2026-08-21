@@ -23,6 +23,7 @@ ui_menu_sites() {
  13) Purge
  14) Purge Force (active site)
  15) Update kho mới (main cùng dòng source)
+ 16) Khởi tạo kho mới trống từ kho cũ
 
   0) Back
 
@@ -61,6 +62,7 @@ EOF
       13) ui_flow_purge ;;
       14) ui_flow_purge_force ;;
       15) ui_flow_update_repository ;;
+      16) ui_flow_bootstrap_repository ;;
       0) return 0 ;;
     esac
   done
@@ -207,5 +209,41 @@ ui_flow_update_repository() {
   echo
   ui_confirm_execute "UPDATE REPOSITORY ADDRESS: $site → $new_repo" &&
     ui_run_sudo git migrate-remote "$site" "--to=$new_repo" --require-compatible-main --yes
+  ui_pause
+}
+
+ui_flow_bootstrap_repository() {
+  local site new_repo
+  site="$(ui_select_site "Chọn site cần KHỞI TẠO KHO MỚI")" || return 0
+
+  ui_section "KHỞI TẠO KHO MỚI TRỐNG TỪ KHO CŨ"
+  echo "Quy trình an toàn:"
+  echo "  - Đọc source chuẩn trực tiếp từ kho cũ/main"
+  echo "  - Kho mới bắt buộc hoàn toàn trống"
+  echo "  - Không lấy source local của project để tạo kho mới"
+  echo "  - Khi thực thi sẽ kiểm tra quyền ghi + xóa bằng ref tạm"
+  echo "  - Push old/main -> new/main và verify SHA + tree 100%"
+  echo "  - Chỉ sau verify mới đổi origin của site và sync Inventory"
+  echo "  - HEAD/worktree/deploy/database/container được giữ nguyên"
+  echo
+  ui_run site show "$site"
+  echo
+
+  new_repo="$(ui_prompt "Địa chỉ Git repository MỚI VÀ TRỐNG")"
+  [[ -n "$new_repo" ]] || { echo "[ERROR] Repository mới bắt buộc."; ui_pause; return; }
+
+  ui_section "BOOTSTRAP VERIFY / DRY-RUN"
+  ui_run_sudo git bootstrap-remote "$site" "--to=$new_repo" --dry-run || {
+    echo
+    echo "[ERROR] Kho mới không trống hoặc source/main không đủ điều kiện. Site chưa bị thay đổi."
+    ui_pause
+    return
+  }
+
+  echo
+  echo "CẢNH BÁO: Bước tiếp theo sẽ GHI main vào repository mới."
+  echo "Origin của site chỉ thay đổi sau khi push và verify thành công."
+  ui_confirm_execute "BOOTSTRAP NEW REPOSITORY: $site → $new_repo" &&
+    ui_run_sudo git bootstrap-remote "$site" "--to=$new_repo" --yes
   ui_pause
 }
