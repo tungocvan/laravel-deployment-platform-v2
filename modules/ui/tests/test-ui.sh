@@ -14,6 +14,7 @@ for f in \
   "$ROOT/modules/ui/menus/doctor.sh" \
   "$ROOT/modules/ui/menus/packages.sh" \
   "$ROOT/modules/ui/flows/bootstrap-repository.sh" \
+  "$ROOT/modules/ui/flows/repository-access.sh" \
   "$ROOT/modules/ui/commands/menu.sh"
 do
   [[ -f "$f" ]] || { echo "[ERROR] Missing: $f"; exit 1; }
@@ -52,6 +53,21 @@ grep -q 'git sync-repositories.*--yes' "$ROOT/modules/ui/menus/sites.sh"
 grep -q 'Target ahead hoặc diverged: BLOCK' "$ROOT/modules/ui/menus/sites.sh"
 grep -q 'Không force-push, không tự merge, không sync ngược' "$ROOT/modules/ui/menus/sites.sh"
 
+# Repository access workflow: menu 18 probes read/write/delete without touching
+# main, can generate a repository-specific key, never prints the private key,
+# and guides the operator to install only the public key on GitHub.
+grep -q '18) Kiểm tra quyền repository / SSH key' "$ROOT/modules/ui/menus/sites.sh"
+grep -q '18) ui_flow_repository_access' "$ROOT/modules/ui/menus/sites.sh"
+grep -q 'source "$PLATFORM_HOME/modules/ui/flows/repository-access.sh"' "$ROOT/modules/ui/commands/menu.sh"
+grep -q '^ui_flow_repository_access()' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'refs/platform/write-probe/access-' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'github_${owner}_${name}_ed25519' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'Private key: .*KHÔNG hiển thị' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'cat "$key_file.pub"' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'Allow write access' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'Repository URL mới' "$ROOT/modules/ui/flows/repository-access.sh"
+! grep -q 'cat "$key_file"' "$ROOT/modules/ui/flows/repository-access.sh"
+
 # Professional navigation contract: top-level items explain their contents and
 # an operator guide must be reachable directly from the first screen.
 grep -q '^ui_quick_guide()' "$ROOT/modules/ui/menus/main.sh"
@@ -72,4 +88,4 @@ grep -q 'INFRASTRUCTURE — SSL CERTIFICATES / NGINX ROUTING' "$ROOT/modules/ui/
 grep -q 'DOCTOR & DOMAIN DIAGNOSTICS' "$ROOT/modules/ui/menus/doctor.sh"
 grep -q 'PACKAGES — INVENTORY / VERIFY / HISTORY' "$ROOT/modules/ui/menus/packages.sh"
 
-echo "[OK] Interactive UI dev.6 + descriptive operations console + repository/deploy guidance"
+echo "[OK] Interactive UI dev.6 + descriptive operations console + repository access/SSH guidance"
