@@ -3,6 +3,8 @@ set -Eeuo pipefail
 source "${PLATFORM_HOME:-/opt/laravel-deployment-platform-v2}/core/bootstrap.sh"
 source "$PLATFORM_HOME/modules/inventory/lib/inventory.sh"
 source "$PLATFORM_HOME/modules/site/lib/site.sh"
+source "$PLATFORM_HOME/modules/site/lib/repository.sh"
+export PLATFORM_DEFAULT_SITE_REPO="${PLATFORM_DEFAULT_SITE_REPO:-$(site_canonical_repo)}"
 source "$PLATFORM_HOME/modules/ui/lib/ui.sh"
 source "$PLATFORM_HOME/modules/ui/menus/sites.sh"
 source "$PLATFORM_HOME/modules/ui/menus/backup.sh"
