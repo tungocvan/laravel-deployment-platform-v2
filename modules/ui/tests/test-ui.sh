@@ -6,10 +6,15 @@ ROOT="${PLATFORM_HOME:-$SCRIPT_ROOT}"
 
 for f in \
   "$ROOT/modules/ui/lib/ui.sh" \
+  "$ROOT/modules/ui/menus/main.sh" \
   "$ROOT/modules/ui/menus/infrastructure.sh" \
   "$ROOT/modules/ui/menus/backup.sh" \
   "$ROOT/modules/ui/menus/sites.sh" \
+  "$ROOT/modules/ui/menus/deploy.sh" \
+  "$ROOT/modules/ui/menus/doctor.sh" \
+  "$ROOT/modules/ui/menus/packages.sh" \
   "$ROOT/modules/ui/flows/bootstrap-repository.sh" \
+  "$ROOT/modules/ui/flows/repository-access.sh" \
   "$ROOT/modules/ui/commands/menu.sh"
 do
   [[ -f "$f" ]] || { echo "[ERROR] Missing: $f"; exit 1; }
@@ -48,4 +53,45 @@ grep -q 'git sync-repositories.*--yes' "$ROOT/modules/ui/menus/sites.sh"
 grep -q 'Target ahead hoặc diverged: BLOCK' "$ROOT/modules/ui/menus/sites.sh"
 grep -q 'Không force-push, không tự merge, không sync ngược' "$ROOT/modules/ui/menus/sites.sh"
 
-echo "[OK] Interactive UI dev.5 + compatible-main + bootstrap replace-existing + repository sync flow"
+# Repository access workflow: menu 18 probes read/write/delete without touching
+# main, reuses an existing owner SSH alias before creating a new credential,
+# can generate a repository-specific key, and never prints the private key.
+grep -q '18) Kiểm tra quyền repository / SSH key' "$ROOT/modules/ui/menus/sites.sh"
+grep -q '18) ui_flow_repository_access' "$ROOT/modules/ui/menus/sites.sh"
+grep -q 'source "$PLATFORM_HOME/modules/ui/flows/repository-access.sh"' "$ROOT/modules/ui/commands/menu.sh"
+grep -q '^ui_flow_repository_access()' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q '^ui_repo_access_existing_owner_alias()' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q '"github-$owner" "github-$owner-$name"' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'Phát hiện SSH alias đã có cho owner' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'Không cần tạo SSH key mới' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'refs/platform/write-probe/access-' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'github_${owner}_${name}_ed25519' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'Private key: .*KHÔNG hiển thị' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'cat "$key_file.pub"' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'Allow write access' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'Repository URL mới' "$ROOT/modules/ui/flows/repository-access.sh"
+! grep -q 'cat "$key_file"' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'Kiểm tra quyền GitHub / tạo SSH key riêng' "$ROOT/modules/ui/menus/main.sh"
+grep -q 'Không bao giờ chia sẻ private SSH key' "$ROOT/modules/ui/menus/main.sh"
+
+# Professional navigation contract: top-level items explain their contents and
+# an operator guide must be reachable directly from the first screen.
+grep -q '^ui_quick_guide()' "$ROOT/modules/ui/menus/main.sh"
+grep -q 'Sites & Repository' "$ROOT/modules/ui/menus/main.sh"
+grep -q 'Deploy & Runtime' "$ROOT/modules/ui/menus/main.sh"
+grep -q 'Hướng dẫn sử dụng / Chọn đúng chức năng' "$ROOT/modules/ui/menus/main.sh"
+grep -q 'source "$PLATFORM_HOME/modules/ui/menus/main.sh"' "$ROOT/modules/ui/commands/menu.sh"
+
+# Deploy menu must make the fast .env/config workflow discoverable without
+# requiring operators to know that it is implemented by deploy optimize.
+grep -q 'Backend / Laravel Runtime (Migrate, Optimize/Reload .env, Health)' "$ROOT/modules/ui/menus/deploy.sh"
+grep -q 'Optimize / Reload .env' "$ROOT/modules/ui/menus/deploy.sh"
+grep -q 'Health Check — Services + Laravel Boot + Application HTTP' "$ROOT/modules/ui/menus/deploy.sh"
+grep -q 'Full Deploy — build images + Docker up + migrate + optimize' "$ROOT/modules/ui/menus/deploy.sh"
+
+grep -q 'REPOSITORY MANAGEMENT' "$ROOT/modules/ui/menus/sites.sh"
+grep -q 'INFRASTRUCTURE — SSL CERTIFICATES / NGINX ROUTING' "$ROOT/modules/ui/menus/infrastructure.sh"
+grep -q 'DOCTOR & DOMAIN DIAGNOSTICS' "$ROOT/modules/ui/menus/doctor.sh"
+grep -q 'PACKAGES — INVENTORY / VERIFY / HISTORY' "$ROOT/modules/ui/menus/packages.sh"
+
+echo "[OK] Interactive UI dev.6 + descriptive console + repository access/SSH alias guidance"

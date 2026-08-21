@@ -3,12 +3,12 @@
 ui_menu_doctor() {
   while true; do
     ui_header
-    ui_section "DOMAIN / DOCTOR"
+    ui_section "DOCTOR & DOMAIN DIAGNOSTICS — DNS / IDENTITY / SITE HEALTH"
     cat <<'EOF'
 
-  1) Check domain
-  2) Check domain + proposed site identity
-  3) Site doctor
+  1) Check Domain — kiểm tra DNS/domain readiness
+  2) Check Domain + Site Identity — kiểm tra domain với name/database dự kiến trước Create Site
+  3) Site Doctor — kiểm tra source, Docker runtime, workers và backup của site hiện có
 
   0) Back
 

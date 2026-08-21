@@ -3,28 +3,38 @@
 ui_menu_sites() {
   while true; do
     ui_header
-    ui_section "SITE MANAGEMENT"
+    ui_section "SITES & REPOSITORY — LIFECYCLE / STATE / GIT"
     cat <<'EOF'
 
-  1) Create Site
-  2) Danh sách site
-  3) Xem chi tiết site
-  4) Site doctor
-  5) Duplicate site
+  SITE SETUP & INSPECTION
+  -----------------------
+  1) Create Site — tạo site Laravel mới + Docker + domain/SSL + Inventory
+  2) Danh sách site — xem toàn bộ active site trong Inventory
+  3) Xem chi tiết site — domain/path/port/database/repository/commit
+  4) Site Doctor — kiểm tra source, Docker runtime, workers và backup
+  5) Duplicate Site — nhân bản site sang identity/domain mới
 
-  6) Enable
-  7) Disable
-  8) Maintenance ON
-  9) Maintenance OFF
+  SITE STATE / MAINTENANCE
+  ------------------------
+  6) Enable — bật lại site đã disable
+  7) Disable — dừng/disable site có kiểm soát
+  8) Maintenance ON — đưa Laravel vào chế độ bảo trì
+  9) Maintenance OFF — đưa Laravel trở lại phục vụ request
 
- 10) Archive
- 11) Restore archived site
- 12) Danh sách archive
- 13) Purge
- 14) Purge Force (active site)
- 15) Update kho mới (main cùng dòng source)
- 16) Khởi tạo kho mới trống từ kho cũ
- 17) Đồng bộ 2 kho Git
+  ARCHIVE / DELETE
+  ----------------
+ 10) Archive — lưu trữ site khỏi active runtime
+ 11) Restore archived site — khôi phục site đã archive
+ 12) Danh sách archive — xem các site đang lưu trữ
+ 13) Purge — xóa vĩnh viễn site đã archive
+ 14) Purge Force (active site) — xóa trực tiếp active site, thao tác nguy hiểm
+
+  REPOSITORY MANAGEMENT
+  ---------------------
+ 15) Update kho mới (main cùng dòng source) — chỉ đổi origin khi history tương thích
+ 16) Khởi tạo kho mới trống từ kho cũ — copy old/main sang repo mới rồi đổi origin
+ 17) Đồng bộ 2 kho Git — sync một chiều SOURCE/main → TARGET/main, fast-forward only
+ 18) Kiểm tra quyền repository / SSH key — test READ+WRITE+DELETE, tạo key riêng khi thiếu quyền
 
   0) Back
 
@@ -65,6 +75,7 @@ EOF
       15) ui_flow_update_repository ;;
       16) ui_flow_bootstrap_repository ;;
       17) ui_flow_sync_repositories ;;
+      18) ui_flow_repository_access ;;
       0) return 0 ;;
     esac
   done

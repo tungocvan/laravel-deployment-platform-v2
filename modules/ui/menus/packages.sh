@@ -3,13 +3,13 @@
 ui_menu_packages() {
   while true; do
     ui_header
-    ui_section "PACKAGES"
+    ui_section "PACKAGES — INVENTORY / VERIFY / HISTORY"
     cat <<'EOF'
 
-  1) List packages
-  2) Show package
-  3) Verify package
-  4) Package history
+  1) List Packages — liệt kê package/module package được Platform quản lý
+  2) Show Package — xem metadata và chi tiết một package
+  3) Verify Package — kiểm tra package contract/integrity
+  4) Package History — xem lịch sử thay đổi của package
 
   0) Back
 
