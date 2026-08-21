@@ -67,6 +67,8 @@ grep -q 'cat "$key_file.pub"' "$ROOT/modules/ui/flows/repository-access.sh"
 grep -q 'Allow write access' "$ROOT/modules/ui/flows/repository-access.sh"
 grep -q 'Repository URL mới' "$ROOT/modules/ui/flows/repository-access.sh"
 ! grep -q 'cat "$key_file"' "$ROOT/modules/ui/flows/repository-access.sh"
+grep -q 'Kiểm tra quyền GitHub / tạo SSH key riêng' "$ROOT/modules/ui/menus/main.sh"
+grep -q 'Không bao giờ chia sẻ private SSH key' "$ROOT/modules/ui/menus/main.sh"
 
 # Professional navigation contract: top-level items explain their contents and
 # an operator guide must be reachable directly from the first screen.
@@ -88,4 +90,4 @@ grep -q 'INFRASTRUCTURE — SSL CERTIFICATES / NGINX ROUTING' "$ROOT/modules/ui/
 grep -q 'DOCTOR & DOMAIN DIAGNOSTICS' "$ROOT/modules/ui/menus/doctor.sh"
 grep -q 'PACKAGES — INVENTORY / VERIFY / HISTORY' "$ROOT/modules/ui/menus/packages.sh"
 
-echo "[OK] Interactive UI dev.6 + descriptive operations console + repository access/SSH guidance"
+echo "[OK] Interactive UI dev.6 + descriptive console + repository access/SSH key guidance"
