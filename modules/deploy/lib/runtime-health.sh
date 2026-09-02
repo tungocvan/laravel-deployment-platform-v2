@@ -3,6 +3,7 @@
 # Runtime safety layer for deploy.sh.
 # Source this file after deploy.sh (and readiness.sh when used) so these
 # implementations intentionally strengthen the existing deploy contract.
+source "${PLATFORM_HOME:-/opt/laravel-deployment-platform-v2}/modules/deploy/lib/storage.sh"
 
 deploy_runtime_service_exists() {
   local project_dir="$1" service="$2"
@@ -133,8 +134,8 @@ deploy_optimize_path() {
 }
 
 # Override deploy.sh: a healthy php-fpm process is insufficient. Laravel must
-# bootstrap successfully and a real request through the local web port must
-# return 2xx/3xx before deploy can succeed.
+# bootstrap successfully, public storage must be readable through Nginx, and a
+# real request through the local web port must return 2xx/3xx.
 deploy_health_path() {
   local project_dir="$1" errors=0 service
 
@@ -165,6 +166,10 @@ deploy_health_path() {
   fi
 
   [[ "$errors" -eq 0 ]] || die "Deploy health phát hiện $errors lỗi trước HTTP verification."
+
+  # Repair the shared-volume public disk after every recreate/restart and prove
+  # that the separate Nginx container can serve a file through /storage/*.
+  deploy_storage_normalize_path "$project_dir"
 
   if ! deploy_verify_application_http_path "$project_dir" "${PLATFORM_DEPLOY_HTTP_TIMEOUT:-60}"; then
     die "Application HTTP verification failed; deploy không được đánh dấu thành công."

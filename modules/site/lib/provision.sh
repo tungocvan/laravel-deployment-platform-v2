@@ -22,6 +22,7 @@
 # writable by the PHP-FPM runtime group. Default runtime GID is 33 (www-data).
 # Override with PLATFORM_APP_GID when an image uses a different runtime GID.
 #
+source "${PLATFORM_HOME:-/opt/laravel-deployment-platform-v2}/modules/deploy/lib/storage.sh"
 
 site_provision_set_env_value() {
   local file="$1" key="$2" value="$3" escaped
@@ -168,6 +169,7 @@ site_provision_prepare_runtime() {
 site_provision_finalize_runtime() {
   local project_path="$1"
   deploy_finalize_path "$project_path"
+  deploy_storage_normalize_path "$project_path"
 }
 
 site_provision_configure_web() {

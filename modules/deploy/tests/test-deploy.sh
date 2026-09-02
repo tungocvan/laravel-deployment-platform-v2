@@ -3,6 +3,7 @@ set -Eeuo pipefail
 ROOT="${PLATFORM_HOME:-/opt/laravel-deployment-platform-v2}"
 F="$ROOT/modules/deploy/lib/deploy.sh"
 R="$ROOT/modules/deploy/lib/runtime-health.sh"
+S="$ROOT/modules/deploy/lib/storage.sh"
 
 for fn in \
   deploy_resolve_path deploy_compose deploy_prepare deploy_migrate \
@@ -23,6 +24,10 @@ do
   grep -q "^${fn}()" "$R" || { echo "[ERROR] Missing runtime guard $fn"; exit 1; }
 done
 
+for fn in deploy_storage_normalize_path deploy_storage_verify_path deploy_storage_repair; do
+  grep -q "^${fn}()" "$S" || { echo "[ERROR] Missing storage contract $fn"; exit 1; }
+done
+
 # Contract: config cache refresh must be followed by PHP runtime restart.
 grep -Fq 'Restart PHP runtime after cache refresh' "$R" || { echo '[ERROR] Missing PHP runtime restart contract'; exit 1; }
 grep -Fq 'deploy_restart_php_runtime_path' "$R" || { echo '[ERROR] Missing PHP runtime restart helper call'; exit 1; }
@@ -38,6 +43,17 @@ grep -Fq 'php artisan about --no-ansi' "$R" || { echo '[ERROR] Missing Laravel b
 grep -Fq '^[23][0-9][0-9]$' "$R" || { echo '[ERROR] Missing HTTP 2xx/3xx acceptance contract'; exit 1; }
 grep -Fq 'Application HTTP verification failed' "$R" || { echo '[ERROR] Missing HTTP failure contract'; exit 1; }
 
+# Public storage contract: shared volume remains private except for the public
+# disk, which must be traversable/readable by the separate Nginx container.
+grep -Fq 'chmod 2711 storage/app' "$S" || { echo '[ERROR] Missing storage/app traverse permission'; exit 1; }
+grep -Fq 'chmod 2755 {}' "$S" || { echo '[ERROR] Missing public directory permission'; exit 1; }
+grep -Fq 'chmod 0644 {}' "$S" || { echo '[ERROR] Missing public file permission'; exit 1; }
+grep -Fq 'http://127.0.0.1:8080/storage/$probe' "$S" || { echo '[ERROR] Missing Nginx public-storage probe'; exit 1; }
+grep -Fq 'deploy_storage_normalize_path "$project_dir"' "$R" || { echo '[ERROR] Runtime health must normalize public storage'; exit 1; }
+grep -Fq 'deploy_storage_normalize_path "$project_path"' "$ROOT/modules/site/lib/provision.sh" || { echo '[ERROR] Create Site must normalize public storage'; exit 1; }
+grep -Fq -- '--storage-only' "$ROOT/modules/deploy/commands/health.sh" || { echo '[ERROR] Missing storage-only repair command path'; exit 1; }
+grep -Fq 'Repair Public Storage' "$ROOT/modules/ui/menus/deploy.sh" || { echo '[ERROR] Missing storage repair UI action'; exit 1; }
+
 # Runtime guard must be active for run/health/optimize entry points.
 for cmd in run health optimize; do
   grep -Fq 'modules/deploy/lib/runtime-health.sh' "$ROOT/modules/deploy/commands/$cmd.sh" || {
@@ -49,10 +65,13 @@ done
 [[ -x "$ROOT/modules/deploy/commands/frontend.sh" ]] || { echo '[ERROR] frontend command is not executable'; exit 1; }
 bash -n "$F"
 bash -n "$R"
+bash -n "$S"
 bash -n "$ROOT/modules/deploy/commands/run.sh"
 bash -n "$ROOT/modules/deploy/commands/health.sh"
 bash -n "$ROOT/modules/deploy/commands/optimize.sh"
 bash -n "$ROOT/modules/deploy/commands/frontend.sh"
+bash -n "$ROOT/modules/site/lib/provision.sh"
+bash -n "$ROOT/modules/ui/menus/deploy.sh"
 
 # Execute the HTTP gate itself against isolated loopback servers.
 TMP="$(mktemp -d /tmp/platform-deploy-http-test.XXXXXX)"
@@ -132,4 +151,4 @@ if deploy_verify_application_http_path "$TMP" 0 >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "[OK] Deploy Module v1.2 runtime restart + web upstream refresh + application HTTP gate"
+echo "[OK] Deploy Module v1.3 runtime + public storage + application HTTP gate"

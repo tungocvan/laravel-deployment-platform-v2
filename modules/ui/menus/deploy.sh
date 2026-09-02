@@ -169,10 +169,13 @@ ui_deploy_wizard() {
   4) Frontend (Build, Dependencies, Scripts, Detect)
      Quản lý frontend assets và package manager.
 
-  5) Health Check — Services + Laravel Boot + Application HTTP
+  5) Health Check — Services + Laravel Boot + Public Storage + Application HTTP
      Nên chạy đầu tiên khi site lỗi 500/502 hoặc sau thay đổi runtime.
 
   6) Container Status — xem trạng thái Docker services của site
+
+  7) Repair Public Storage — sửa quyền storage/app/public và verify /storage/* qua Nginx
+     Dùng khi upload logo/favicon/file thành công nhưng URL /storage/... trả 403.
 
   0) Back
 EOF
@@ -206,6 +209,11 @@ EOF
         ;;
       6)
         ui_run deploy status "$site"
+        ui_pause
+        ;;
+      7)
+        ui_confirm_execute "REPAIR PUBLIC STORAGE: $site" &&
+          ui_run_sudo deploy health "$site" --storage-only
         ui_pause
         ;;
       0)
