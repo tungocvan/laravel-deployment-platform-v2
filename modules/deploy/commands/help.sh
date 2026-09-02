@@ -30,6 +30,11 @@ COMMANDS
   migrate <site|path>
   optimize <site|path>
   health <site|path>
+      Run runtime, Laravel, public-storage and HTTP health checks.
+
+  health <site|path> --storage-only
+      Repair public storage permissions and verify Nginx can serve /storage/*.
+
   status <site|path>
 
 OPTIONS
@@ -40,5 +45,6 @@ EXAMPLES
   platform deploy frontend detect nvh
   sudo platform deploy frontend install nvh
   sudo platform deploy frontend build nvh
+  sudo platform deploy health nvh --storage-only
   sudo platform deploy run nvh
 EOF
