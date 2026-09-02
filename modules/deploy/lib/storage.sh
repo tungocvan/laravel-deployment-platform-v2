@@ -33,7 +33,10 @@ deploy_storage_verify_path() {
   local probe=".platform-storage-health-$$"
 
   deploy_compose "$project_dir" exec -T app sh -lc \
-    "printf '%s\\n' platform-storage-ok > /var/www/html/storage/app/public/$probe"
+    "set -eu; printf '%s\\n' platform-storage-ok > /var/www/html/storage/app/public/$probe; chmod 0644 /var/www/html/storage/app/public/$probe"
+
+  deploy_compose "$project_dir" exec -T app sh -lc \
+    "printf '[INFO] storage/app mode=%s\\n' \"\$(stat -c '%a' /var/www/html/storage/app)\"; printf '[INFO] storage/app/public mode=%s\\n' \"\$(stat -c '%a' /var/www/html/storage/app/public)\"; printf '[INFO] probe mode=%s\\n' \"\$(stat -c '%a' /var/www/html/storage/app/public/$probe)\""
 
   if deploy_compose "$project_dir" exec -T web sh -lc \
     "wget -q -O - http://127.0.0.1:8080/storage/$probe | grep -Fxq platform-storage-ok"; then
