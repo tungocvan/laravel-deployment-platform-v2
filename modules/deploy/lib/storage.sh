@@ -30,7 +30,9 @@ deploy_storage_normalize_path() {
 
 deploy_storage_verify_path() {
   local project_dir="$1"
-  local probe=".platform-storage-health-$$"
+  # Do not use a dotfile here: production Nginx commonly denies requests to
+  # hidden files by design, which would create a false-negative storage probe.
+  local probe="platform-storage-health-$$.txt"
 
   deploy_compose "$project_dir" exec -T app sh -lc \
     "set -eu; printf '%s\\n' platform-storage-ok > /var/www/html/storage/app/public/$probe; chmod 0644 /var/www/html/storage/app/public/$probe"
