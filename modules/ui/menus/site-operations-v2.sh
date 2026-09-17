@@ -40,6 +40,37 @@ ui_flow_production_update() {
   ui_pause
 }
 
+ui_flow_production_env() {
+  local site c env_file
+  site="$(ui_select_site "Chọn site cần quản lý .env")" || return 0
+  while true; do
+    echo
+    echo "========================================================="
+    echo "UPDATE .env — $site"
+    echo "========================================================="
+    cat <<'EOF'
+  1) Xem danh sách key hiện tại (values redacted)
+  2) Sửa / thêm / xóa biến — staging editor + preview + confirm
+  3) Import từ file .env khác — preview + confirm
+  0) Back
+EOF
+    read -r -p "Chọn: " c
+    case "$c" in
+      1) ui_run_sudo site env "$site" --keys; ui_pause ;;
+      2) ui_run_sudo site env "$site" --edit; ui_pause ;;
+      3)
+        env_file="$(ui_prompt "Đường dẫn file .env cần import")"
+        [[ -f "$env_file" ]] || { echo "[ERROR] File không tồn tại: $env_file"; ui_pause; continue; }
+        ui_run_sudo site env "$site" "$env_file" --dry-run
+        echo
+        ui_confirm_execute "IMPORT .env: $site" && ui_run_sudo site env "$site" "$env_file" --yes
+        ui_pause
+        ;;
+      0) return 0 ;;
+    esac
+  done
+}
+
 ui_flow_production_reconcile() {
   local site rc=0
   site="$(ui_select_site "Chọn site cần RECONCILE / RESUME runtime")" || return 0
@@ -72,7 +103,7 @@ ui_menu_sites() {
   --------------------------
   1) Create Site
   2) Update Site — Git fast-forward + runtime reconcile
-  3) Update .env — key-only diff + safe reconcile
+  3) Manage .env — site-aware staging + key-only diff + safe reconcile
   4) Production Diagnostics — read-only evidence
   5) Run Artisan — app service auto-discovery
   6) Runtime / Docker Status — topology + health + ports
@@ -107,12 +138,12 @@ ui_menu_sites() {
 
   0) Back
 EOF
-    local c site cmd env_file
+    local c site cmd
     read -r -p "Chọn: " c
     case "$c" in
       1) ui_flow_create ;;
       2) ui_flow_production_update ;;
-      3) site="$(ui_select_site "Chọn site cần UPDATE .env")" || continue; env_file="$(ui_prompt "Đường dẫn file .env mới")"; [[ -f "$env_file" ]] || { echo "[ERROR] File không tồn tại."; ui_pause; continue; }; ui_run_sudo site env "$site" "$env_file" --dry-run; echo; ui_confirm_execute "UPDATE .env: $site" && ui_run_sudo site env "$site" "$env_file" --yes; ui_pause ;;
+      3) ui_flow_production_env ;;
       4) site="$(ui_select_site "Chọn site")" || continue; ui_run site diagnostics "$site"; ui_pause ;;
       5) site="$(ui_select_site "Chọn site")" || continue; cmd="$(ui_prompt "Artisan command (vd: about, route:list)")"; [[ -n "$cmd" ]] && ui_run_sudo site artisan "$site" $cmd; ui_pause ;;
       6) site="$(ui_select_site "Chọn site")" || continue; ui_run site runtime "$site"; ui_pause ;;

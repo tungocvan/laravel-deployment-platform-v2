@@ -102,6 +102,37 @@ site_ops_env_keys() { local file="$1"; [[ -f "$file" ]] || return 0; sed -n -E '
 site_ops_env_value() { local file="$1" key="$2"; awk -v key="$key" 'index($0,key "=")==1 {print substr($0,length(key)+2); found=1; exit} END {if (!found) exit 1}' "$file"; }
 site_ops_env_diff_keys() { local old="$1" new="$2" key old_value new_value; while IFS= read -r key; do [[ -n "$key" ]] || continue; old_value="$(site_ops_env_value "$old" "$key" 2>/dev/null || true)"; new_value="$(site_ops_env_value "$new" "$key" 2>/dev/null || true)"; if ! grep -qE "^${key}=" "$old" 2>/dev/null || ! grep -qE "^${key}=" "$new" 2>/dev/null || [[ "$old_value" != "$new_value" ]]; then printf '%s\n' "$key"; fi; done < <(cat <(site_ops_env_keys "$old") <(site_ops_env_keys "$new") | sort -u); }
 
+# Return the env keys actually interpolated by the Compose files that own the
+# live runtime. If live labels are unavailable (for example a stopped/legacy
+# site), fall back to the conventional root Compose files. Values are never read.
+site_ops_env_compose_keys() {
+  local site="$1" path="$2" files file
+  files="$(site_ops_runtime_config_files "$site" "$path" 2>/dev/null || true)"
+  if [[ -z "$files" ]]; then
+    for file in compose.yaml compose.yml docker-compose.yaml docker-compose.yml; do
+      [[ -f "$path/$file" ]] && printf '%s\n' "$path/$file"
+    done
+  else
+    printf '%s\n' "$files"
+  fi | while IFS= read -r file; do
+    [[ -f "$file" ]] || continue
+    grep -oE '\$\{[A-Za-z_][A-Za-z0-9_]*([^}]*)?\}' "$file" 2>/dev/null \
+      | sed -E 's/^\$\{//; s/(:-|:-|:\?|\?|\+|:\+|-|\+).*//; s/\}$//' || true
+  done | sort -u
+}
+
+site_ops_env_requires_reconcile() {
+  local site="$1" path="$2" keys="$3" compose_keys key
+  compose_keys="$(site_ops_env_compose_keys "$site" "$path")"
+  while IFS= read -r key; do
+    [[ -n "$key" ]] || continue
+    if grep -Fxq "$key" <<<"$compose_keys" || [[ "$key" == APP_URL || "$key" == HTTP_PORT || "$key" == SOCKET_PORT || "$key" == COMPOSE_* ]]; then
+      return 0
+    fi
+  done <<<"$keys"
+  return 1
+}
+
 site_ops_env_apply() {
   require_root
   local site="${1:-}" source_file="${2:-}"; shift 2 || true
@@ -109,7 +140,7 @@ site_ops_env_apply() {
   local dry=0 yes=0 arg; for arg in "$@"; do case "$arg" in --dry-run) dry=1;; --yes) yes=1;; *) die "Option không hợp lệ: $arg";; esac; done
   local path env backup keys compose_sensitive=0; path="$(site_runtime_path "$site")"; env="$path/.env"; [[ -f "$env" ]] || die "Site thiếu .env: $path"
   backup="$(mktemp)"; cp -p "$env" "$backup"; keys="$(site_ops_env_diff_keys "$env" "$source_file")"
-  grep -Eq '^(APP_|DB_|REDIS_|CACHE_|SESSION_|QUEUE_|BROADCAST_|VITE_|HTTP_PORT|SOCKET_PORT|COMPOSE_)' <<<"$keys" && compose_sensitive=1 || true
+  site_ops_env_requires_reconcile "$site" "$path" "$keys" && compose_sensitive=1 || true
   echo "Changed/added/removed keys (values redacted):"; if [[ -n "$keys" ]]; then printf '%s\n' "$keys" | sed 's/^/  - /'; else echo "  (none)"; fi
   echo "Runtime reconcile required: $compose_sensitive"; [[ "$dry" -eq 0 ]] || { rm -f "$backup"; echo "[DRY-RUN] .env unchanged."; return 0; }
   [[ "$yes" -eq 1 ]] || site_confirm "Apply .env update?" || { rm -f "$backup"; die "Đã hủy."; }
