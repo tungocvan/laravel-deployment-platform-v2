@@ -6,6 +6,7 @@ files=(
   "$ROOT/modules/site/lib/deploy-readiness.sh"
   "$ROOT/modules/site/lib/operations.sh"
   "$ROOT/modules/site/lib/reconcile.sh"
+  "$ROOT/modules/site/lib/env-management.sh"
   "$ROOT/modules/site/commands/update.sh"
   "$ROOT/modules/site/commands/env.sh"
   "$ROOT/modules/site/commands/diagnostics.sh"
@@ -16,7 +17,7 @@ files=(
 )
 for f in "${files[@]}"; do bash -n "$f"; done
 
-ops="$ROOT/modules/site/lib/operations.sh"; menu="$ROOT/modules/ui/menus/site-operations-v2.sh"; readiness="$ROOT/modules/site/lib/deploy-readiness.sh"; update_cmd="$ROOT/modules/site/commands/update.sh"; reconcile="$ROOT/modules/site/lib/reconcile.sh"
+ops="$ROOT/modules/site/lib/operations.sh"; menu="$ROOT/modules/ui/menus/site-operations-v2.sh"; readiness="$ROOT/modules/site/lib/deploy-readiness.sh"; update_cmd="$ROOT/modules/site/commands/update.sh"; reconcile="$ROOT/modules/site/lib/reconcile.sh"; env_cmd="$ROOT/modules/site/commands/env.sh"; env_management="$ROOT/modules/site/lib/env-management.sh"
 grep -q 'config --services' "$ROOT/modules/site/lib/runtime.sh"
 grep -q 'merge --ff-only' "$ops"
 grep -q 'com.docker.compose.project.config_files' "$ops"
@@ -63,6 +64,22 @@ grep -q 'site update.*--reconcile --dry-run.*|| rc=' "$menu"
 grep -q 'RECONCILE / RESUME RUNTIME' "$menu"
 grep -q 'site update.*--reconcile --yes' "$menu"
 grep -q '25) ui_flow_production_reconcile' "$menu"
+
+# Site-aware env UX resolves the selected site's .env and edits only a staging copy.
+grep -q 'ui_flow_production_env' "$menu"
+grep -q 'Manage .env — site-aware staging' "$menu"
+grep -q '3) ui_flow_production_env' "$menu"
+grep -q 'site env.*--keys' "$menu"
+grep -q 'site env.*--edit' "$menu"
+grep -q 'Đường dẫn file .env cần import' "$menu"
+grep -q 'modules/site/lib/env-management.sh' "$env_cmd"
+grep -q -- '--keys) site_ops_env_list_keys' "$env_cmd"
+grep -q -- '--edit) site_ops_env_edit' "$env_cmd"
+grep -q 'staged="$(mktemp)"' "$env_management"
+grep -q 'cp -p "$env" "$staged"' "$env_management"
+grep -q 'site_ops_env_apply "$site" "$staged" --dry-run' "$env_management"
+grep -q 'site_ops_env_apply "$site" "$staged" --yes' "$env_management"
+! grep -q 'cat "$env"' "$env_management"
 
 # Functional env comparator: changed values report key names only, never values.
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
