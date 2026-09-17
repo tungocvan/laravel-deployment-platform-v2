@@ -7,5 +7,9 @@ source "$PLATFORM_HOME/modules/deploy/lib/deploy.sh"
 source "$PLATFORM_HOME/modules/backup/lib/backup.sh"
 source "$PLATFORM_HOME/modules/site/lib/site.sh"
 source "$PLATFORM_HOME/modules/site/lib/runtime.sh"
+# Loaded after deploy.sh/runtime.sh intentionally: this overrides only the
+# database wait used by Production Site Update without rewriting shared deploy
+# helpers before the behavior is validated on a real managed site.
+source "$PLATFORM_HOME/modules/site/lib/deploy-readiness.sh"
 source "$PLATFORM_HOME/modules/site/lib/operations.sh"
 site_ops_update "$@"
