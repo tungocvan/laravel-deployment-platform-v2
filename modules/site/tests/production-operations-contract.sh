@@ -3,6 +3,7 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 files=(
   "$ROOT/modules/site/lib/runtime.sh"
+  "$ROOT/modules/site/lib/deploy-readiness.sh"
   "$ROOT/modules/site/lib/operations.sh"
   "$ROOT/modules/site/commands/update.sh"
   "$ROOT/modules/site/commands/env.sh"
@@ -14,7 +15,7 @@ files=(
 )
 for f in "${files[@]}"; do bash -n "$f"; done
 
-ops="$ROOT/modules/site/lib/operations.sh"; menu="$ROOT/modules/ui/menus/site-operations-v2.sh"
+ops="$ROOT/modules/site/lib/operations.sh"; menu="$ROOT/modules/ui/menus/site-operations-v2.sh"; readiness="$ROOT/modules/site/lib/deploy-readiness.sh"; update_cmd="$ROOT/modules/site/commands/update.sh"
 grep -q 'config --services' "$ROOT/modules/site/lib/runtime.sh"
 grep -q 'merge --ff-only' "$ops"
 grep -q 'com.docker.compose.project.config_files' "$ops"
@@ -37,6 +38,19 @@ grep -q 'HOST-WIDE' "$ops"
 grep -q 'NEVER pruned' "$ops"
 grep -q 'migrate:fresh|db:wipe' "$ROOT/modules/site/lib/runtime.sh"
 ! grep -Eq 'git clean -fd|reset --hard|volume prune|system prune|down -v' "$ops"
+
+# Production update readiness must use Laravel's resolved configuration, not
+# getenv(DB_*), and the scoped override must load after shared deploy/runtime.
+grep -q 'DB::connection()->getPdo()' "$readiness"
+grep -q 'Console\\Kernel::class.*bootstrap' "$readiness"
+grep -q "grep -Eqi 'Up|healthy|running'" "$readiness"
+grep -q 'Laravel database connection ready' "$readiness"
+! grep -q 'getenv("DB_' "$readiness"
+grep -q 'modules/deploy/lib/deploy.sh' "$update_cmd"
+grep -q 'modules/site/lib/runtime.sh' "$update_cmd"
+grep -q 'modules/site/lib/deploy-readiness.sh' "$update_cmd"
+[[ "$(grep -n 'modules/deploy/lib/deploy.sh' "$update_cmd" | cut -d: -f1)" -lt "$(grep -n 'modules/site/lib/deploy-readiness.sh' "$update_cmd" | cut -d: -f1)" ]]
+[[ "$(grep -n 'modules/site/lib/runtime.sh' "$update_cmd" | cut -d: -f1)" -lt "$(grep -n 'modules/site/lib/deploy-readiness.sh' "$update_cmd" | cut -d: -f1)" ]]
 
 # Functional env comparator: changed values report key names only, never values.
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
