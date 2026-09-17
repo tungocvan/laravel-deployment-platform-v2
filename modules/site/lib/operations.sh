@@ -4,35 +4,69 @@ site_ops_git_changed_files() { local path="$1" from="$2" to="$3"; git -C "$path"
 site_ops_requires_build() { grep -Eq '(^|/)(package(-lock)?\.json|pnpm-lock\.yaml|yarn\.lock|vite\.config\.|resources/|Dockerfile|compose[^/]*\.ya?ml)' <<<"$1"; }
 site_ops_has_migrations() { grep -Eq '(^|/)database/migrations/' <<<"$1"; }
 
+# Docker Compose records the exact config files used to create a container in
+# com.docker.compose.project.config_files. Treat an untracked overlay as
+# runtime-managed only when a live container for this exact Compose project
+# proves that the exact file path is part of its runtime config.
+site_ops_runtime_config_files() {
+  local site="$1" path="$2" project ids id labels raw file
+  command -v docker >/dev/null 2>&1 || return 0
+  project="$(site_runtime_compose_project "$site" "$path" 2>/dev/null || true)"
+  [[ -n "$project" ]] || return 0
+  ids="$(docker ps -aq --filter "label=com.docker.compose.project=$project" 2>/dev/null || true)"
+  [[ -n "$ids" ]] || return 0
+  for id in $ids; do
+    labels="$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project.config_files" }}' "$id" 2>/dev/null || true)"
+    [[ -n "$labels" && "$labels" != '<no value>' ]] || continue
+    while IFS= read -r raw; do
+      [[ -n "$raw" ]] || continue
+      if [[ "$raw" = /* ]]; then file="$raw"; else file="$path/$raw"; fi
+      [[ -e "$file" ]] || continue
+      readlink -f "$file" 2>/dev/null || true
+    done < <(printf '%s' "$labels" | tr ',' '\n')
+  done | sort -u
+}
+
+site_ops_runtime_owned_overlay() {
+  local path="$1" candidate="$2" runtime_files="$3" absolute
+  [[ "$candidate" =~ (^|/)compose[^/]*\.ya?ml$ ]] || return 1
+  [[ -f "$path/$candidate" ]] || return 1
+  absolute="$(readlink -f "$path/$candidate" 2>/dev/null || true)"
+  [[ -n "$absolute" ]] || return 1
+  grep -Fxq "$absolute" <<<"$runtime_files"
+}
+
 site_ops_dirty_report() {
-  local path="$1" status tracked untracked overlays
+  local site="$1" path="$2" status tracked untracked runtime_files managed="" blocking="" file
   status="$(git -C "$path" status --porcelain --untracked-files=all)"
   [[ -n "$status" ]] || return 1
-
   tracked="$(printf '%s\n' "$status" | awk 'substr($0,1,2) != "??" {print substr($0,4)}')"
   untracked="$(printf '%s\n' "$status" | awk 'substr($0,1,2) == "??" {print substr($0,4)}')"
-  overlays="$(printf '%s\n' "$untracked" | grep -E '(^|/)compose[^/]*\.ya?ml$' || true)"
+  runtime_files="$(site_ops_runtime_config_files "$site" "$path")"
 
+  while IFS= read -r file; do
+    [[ -n "$file" ]] || continue
+    if site_ops_runtime_owned_overlay "$path" "$file" "$runtime_files"; then
+      managed+="${managed:+$'\n'}$file"
+    else
+      blocking+="${blocking:+$'\n'}$file"
+    fi
+  done <<<"$untracked"
+
+  if [[ -n "$managed" ]]; then
+    echo "RUNTIME-MANAGED OVERLAYS (verified from live Docker Compose labels):"
+    printf '%s\n' "$managed" | sed 's/^/  - /'
+    echo "[OK] Các overlay này được giữ nguyên và không làm BLOCK Update Site."
+  fi
+
+  [[ -z "$tracked" && -z "$blocking" ]] && return 1
   echo "========================================================="
   echo "UPDATE SITE — BLOCKED: WORKING TREE NOT CLEAN"
   echo "========================================================="
-  if [[ -n "$tracked" ]]; then
-    echo "TRACKED MODIFIED / STAGED:"
-    printf '%s\n' "$tracked" | sed 's/^/  - /'
-  fi
-  if [[ -n "$untracked" ]]; then
-    echo "UNTRACKED:"
-    printf '%s\n' "$untracked" | sed 's/^/  - /'
-  fi
-  if [[ -n "$overlays" ]]; then
-    echo
-    echo "[WARNING] Phát hiện untracked Compose overlay có thể là site-local/runtime-managed:"
-    printf '%s\n' "$overlays" | sed 's/^/  - /'
-    echo "Không tự git add, git clean hoặc xóa các file này."
-    echo "Hãy xác minh ownership/runtime contract trước khi Update Site."
-  fi
-  echo
-  echo "Update bị BLOCK để bảo vệ local changes và runtime overlays."
+  if [[ -n "$tracked" ]]; then echo "TRACKED MODIFIED / STAGED:"; printf '%s\n' "$tracked" | sed 's/^/  - /'; fi
+  if [[ -n "$blocking" ]]; then echo "UNTRACKED (NOT VERIFIED AS RUNTIME-MANAGED):"; printf '%s\n' "$blocking" | sed 's/^/  - /'; fi
+  echo "Không tự git add, git clean hoặc xóa các file trên."
+  echo "Update bị BLOCK để bảo vệ local changes và runtime overlays chưa xác minh."
   return 0
 }
 
@@ -44,7 +78,7 @@ site_ops_update() {
   for arg in "$@"; do case "$arg" in --dry-run) dry=1;; --migrate) migrate=1;; --yes) yes=1;; *) die "Option không hợp lệ: $arg";; esac; done
   local path branch before upstream after changed build=0 migration_risk=0
   path="$(site_runtime_path "$site")"; platform_git_trust "$path"
-  if site_ops_dirty_report "$path"; then return 2; fi
+  if site_ops_dirty_report "$site" "$path"; then return 2; fi
   branch="$(git -C "$path" branch --show-current)"; [[ -n "$branch" ]] || die "Detached HEAD. Update bị BLOCK."
   before="$(git -C "$path" rev-parse HEAD)"; git -C "$path" fetch --prune origin; upstream="origin/$branch"
   git -C "$path" rev-parse --verify "$upstream" >/dev/null 2>&1 || die "Không tìm thấy upstream: $upstream"
@@ -77,9 +111,7 @@ site_ops_env_diff_keys() {
     [[ -n "$key" ]] || continue
     old_value="$(site_ops_env_value "$old" "$key" 2>/dev/null || true)"
     new_value="$(site_ops_env_value "$new" "$key" 2>/dev/null || true)"
-    if ! grep -qE "^${key}=" "$old" 2>/dev/null || ! grep -qE "^${key}=" "$new" 2>/dev/null || [[ "$old_value" != "$new_value" ]]; then
-      printf '%s\n' "$key"
-    fi
+    if ! grep -qE "^${key}=" "$old" 2>/dev/null || ! grep -qE "^${key}=" "$new" 2>/dev/null || [[ "$old_value" != "$new_value" ]]; then printf '%s\n' "$key"; fi
   done < <(cat <(site_ops_env_keys "$old") <(site_ops_env_keys "$new") | sort -u)
 }
 
@@ -105,6 +137,7 @@ site_ops_env_apply() {
 site_ops_diagnostics() {
   local site="${1:-}" path; [[ -n "$site" ]] || die "USAGE: platform site diagnostics <site>"; path="$(site_runtime_path "$site")"
   site_runtime_status "$site"; echo; echo "----- GIT -----"; git -C "$path" status -sb || true; git -C "$path" log -1 --oneline || true
+  echo; echo "----- RUNTIME-MANAGED COMPOSE FILES -----"; site_ops_runtime_config_files "$site" "$path" | sed "s#^$path/##" | sed 's/^/  - /' || true
   echo; echo "----- LARAVEL -----"; local app; app="$(site_runtime_app_service "$path" 2>/dev/null || true)"; [[ -n "$app" ]] && deploy_compose "$path" exec -T "$app" php artisan about --only=environment 2>/dev/null || true
   echo; echo "----- RECENT LOGS -----"; deploy_compose "$path" logs --tail=80 2>/dev/null || true
 }
