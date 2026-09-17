@@ -14,22 +14,23 @@ files=(
 )
 for f in "${files[@]}"; do bash -n "$f"; done
 
+ops="$ROOT/modules/site/lib/operations.sh"
 grep -q 'config --services' "$ROOT/modules/site/lib/runtime.sh"
-grep -q 'merge --ff-only' "$ROOT/modules/site/lib/operations.sh"
-grep -q 'UPDATE SITE — BLOCKED: WORKING TREE NOT CLEAN' "$ROOT/modules/site/lib/operations.sh"
-grep -q 'TRACKED MODIFIED / STAGED' "$ROOT/modules/site/lib/operations.sh"
-grep -q 'UNTRACKED:' "$ROOT/modules/site/lib/operations.sh"
-grep -q 'site-local/runtime-managed' "$ROOT/modules/site/lib/operations.sh"
-grep -q 'Không tự git add, git clean hoặc xóa' "$ROOT/modules/site/lib/operations.sh"
-grep -q 'Changed/added/removed keys (values redacted)' "$ROOT/modules/site/lib/operations.sh"
-grep -q 'old_value.*new_value' "$ROOT/modules/site/lib/operations.sh"
-grep -q 'old_value.*!=.*new_value' "$ROOT/modules/site/lib/operations.sh"
-grep -q 'HOST-WIDE' "$ROOT/modules/site/lib/operations.sh"
-grep -q 'NEVER pruned' "$ROOT/modules/site/lib/operations.sh"
+grep -q 'merge --ff-only' "$ops"
+grep -q 'com.docker.compose.project.config_files' "$ops"
+grep -q 'com.docker.compose.project=' "$ops"
+grep -q 'RUNTIME-MANAGED OVERLAYS' "$ops"
+grep -q 'verified from live Docker Compose labels' "$ops"
+grep -q 'UNTRACKED (NOT VERIFIED AS RUNTIME-MANAGED)' "$ops"
+grep -q 'Changed/added/removed keys (values redacted)' "$ops"
+grep -q 'old_value.*new_value' "$ops"
+grep -q 'old_value.*!=.*new_value' "$ops"
+grep -q 'HOST-WIDE' "$ops"
+grep -q 'NEVER pruned' "$ops"
 grep -q 'migrate:fresh|db:wipe' "$ROOT/modules/site/lib/runtime.sh"
-! grep -Eq 'git clean -fd|reset --hard|volume prune|system prune|down -v' "$ROOT/modules/site/lib/operations.sh"
+! grep -Eq 'git clean -fd|reset --hard|volume prune|system prune|down -v' "$ops"
 
-# Functional env comparator: changed values must report key names only, never values.
+# Functional env comparator: changed values report key names only, never values.
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 cat >"$tmp/old.env" <<'EOF'
 APP_ENV=production
@@ -44,12 +45,20 @@ UNCHANGED=same
 ADDED=new
 EOF
 # shellcheck disable=SC1090
-source "$ROOT/modules/site/lib/operations.sh"
+source "$ops"
 diff_keys="$(site_ops_env_diff_keys "$tmp/old.env" "$tmp/new.env")"
 grep -qx 'ADDED' <<<"$diff_keys"
 grep -qx 'DB_PASSWORD' <<<"$diff_keys"
 grep -qx 'REMOVED' <<<"$diff_keys"
 ! grep -q 'UNCHANGED' <<<"$diff_keys"
 ! grep -q 'old-super-secret\|new-super-secret' <<<"$diff_keys"
+
+# Ownership matcher is exact-path and Compose-overlay-only; no wildcard trust.
+mkdir -p "$tmp/site"
+touch "$tmp/site/compose.queue.yaml" "$tmp/site/random.txt"
+runtime_files="$(readlink -f "$tmp/site/compose.queue.yaml")"
+site_ops_runtime_owned_overlay "$tmp/site" 'compose.queue.yaml' "$runtime_files"
+! site_ops_runtime_owned_overlay "$tmp/site" 'random.txt' "$runtime_files"
+! site_ops_runtime_owned_overlay "$tmp/site" 'compose.socket.yaml' "$runtime_files"
 
 echo "PASS production-site-operations-v2 contract"
