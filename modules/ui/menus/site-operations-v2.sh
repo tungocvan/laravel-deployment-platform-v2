@@ -1,6 +1,45 @@
 #!/usr/bin/env bash
 
 # Production Site Operations V2 override. Legacy flow functions remain reused.
+ui_flow_production_update() {
+  local site rc=0 migrate=0
+  site="$(ui_select_site "Chọn site cần UPDATE")" || return 0
+
+  # Preview may intentionally return 3 when migration is required. Do not let
+  # set -e abort the menu; turn that state into an explicit operator decision.
+  ui_run_sudo site update "$site" --dry-run || rc=$?
+  echo
+  case "$rc" in
+    0) ;;
+    3)
+      echo "[WARNING] Update này chứa database migration."
+      echo "          Khi apply, Platform sẽ tạo verified backup checkpoint trước migration."
+      echo "          Migration chỉ chạy khi bạn xác nhận riêng bước này."
+      if ui_yesno "Cho phép chạy migration cho UPDATE SITE: $site ?" "N"; then
+        migrate=1
+      else
+        echo "[CANCELLED] Không chạy update vì migration chưa được operator chấp thuận."
+        ui_pause
+        return 0
+      fi
+      ;;
+    *)
+      echo "[BLOCKED] Preview Update Site không đạt safety checks (exit=$rc). Không apply."
+      ui_pause
+      return 0
+      ;;
+  esac
+
+  if ui_confirm_execute "UPDATE SITE: $site"; then
+    if [[ "$migrate" -eq 1 ]]; then
+      ui_run_sudo site update "$site" --migrate --yes
+    else
+      ui_run_sudo site update "$site" --yes
+    fi
+  fi
+  ui_pause
+}
+
 ui_menu_sites() {
   while true; do
     ui_header
@@ -49,7 +88,7 @@ EOF
     read -r -p "Chọn: " c
     case "$c" in
       1) ui_flow_create ;;
-      2) site="$(ui_select_site "Chọn site cần UPDATE")" || continue; ui_run_sudo site update "$site" --dry-run; echo; ui_confirm_execute "UPDATE SITE: $site" && ui_run_sudo site update "$site" --yes; ui_pause ;;
+      2) ui_flow_production_update ;;
       3) site="$(ui_select_site "Chọn site cần UPDATE .env")" || continue; env_file="$(ui_prompt "Đường dẫn file .env mới")"; [[ -f "$env_file" ]] || { echo "[ERROR] File không tồn tại."; ui_pause; continue; }; ui_run_sudo site env "$site" "$env_file" --dry-run; echo; ui_confirm_execute "UPDATE .env: $site" && ui_run_sudo site env "$site" "$env_file" --yes; ui_pause ;;
       4) site="$(ui_select_site "Chọn site")" || continue; ui_run site diagnostics "$site"; ui_pause ;;
       5) site="$(ui_select_site "Chọn site")" || continue; cmd="$(ui_prompt "Artisan command (vd: about, route:list)")"; [[ -n "$cmd" ]] && ui_run_sudo site artisan "$site" $cmd; ui_pause ;;
