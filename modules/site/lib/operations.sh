@@ -4,6 +4,38 @@ site_ops_git_changed_files() { local path="$1" from="$2" to="$3"; git -C "$path"
 site_ops_requires_build() { grep -Eq '(^|/)(package(-lock)?\.json|pnpm-lock\.yaml|yarn\.lock|vite\.config\.|resources/|Dockerfile|compose[^/]*\.ya?ml)' <<<"$1"; }
 site_ops_has_migrations() { grep -Eq '(^|/)database/migrations/' <<<"$1"; }
 
+site_ops_dirty_report() {
+  local path="$1" status tracked untracked overlays
+  status="$(git -C "$path" status --porcelain --untracked-files=all)"
+  [[ -n "$status" ]] || return 1
+
+  tracked="$(printf '%s\n' "$status" | awk 'substr($0,1,2) != "??" {print substr($0,4)}')"
+  untracked="$(printf '%s\n' "$status" | awk 'substr($0,1,2) == "??" {print substr($0,4)}')"
+  overlays="$(printf '%s\n' "$untracked" | grep -E '(^|/)compose[^/]*\.ya?ml$' || true)"
+
+  echo "========================================================="
+  echo "UPDATE SITE — BLOCKED: WORKING TREE NOT CLEAN"
+  echo "========================================================="
+  if [[ -n "$tracked" ]]; then
+    echo "TRACKED MODIFIED / STAGED:"
+    printf '%s\n' "$tracked" | sed 's/^/  - /'
+  fi
+  if [[ -n "$untracked" ]]; then
+    echo "UNTRACKED:"
+    printf '%s\n' "$untracked" | sed 's/^/  - /'
+  fi
+  if [[ -n "$overlays" ]]; then
+    echo
+    echo "[WARNING] Phát hiện untracked Compose overlay có thể là site-local/runtime-managed:"
+    printf '%s\n' "$overlays" | sed 's/^/  - /'
+    echo "Không tự git add, git clean hoặc xóa các file này."
+    echo "Hãy xác minh ownership/runtime contract trước khi Update Site."
+  fi
+  echo
+  echo "Update bị BLOCK để bảo vệ local changes và runtime overlays."
+  return 0
+}
+
 site_ops_update() {
   require_root
   local site="${1:-}"; shift || true
@@ -12,7 +44,7 @@ site_ops_update() {
   for arg in "$@"; do case "$arg" in --dry-run) dry=1;; --migrate) migrate=1;; --yes) yes=1;; *) die "Option không hợp lệ: $arg";; esac; done
   local path branch before upstream after changed build=0 migration_risk=0
   path="$(site_runtime_path "$site")"; platform_git_trust "$path"
-  [[ -z "$(git -C "$path" status --porcelain --untracked-files=all)" ]] || die "Working tree không sạch. Update bị BLOCK để bảo vệ local changes/overlays."
+  if site_ops_dirty_report "$path"; then return 2; fi
   branch="$(git -C "$path" branch --show-current)"; [[ -n "$branch" ]] || die "Detached HEAD. Update bị BLOCK."
   before="$(git -C "$path" rev-parse HEAD)"; git -C "$path" fetch --prune origin; upstream="origin/$branch"
   git -C "$path" rev-parse --verify "$upstream" >/dev/null 2>&1 || die "Không tìm thấy upstream: $upstream"
@@ -38,7 +70,18 @@ site_ops_update() {
 }
 
 site_ops_env_keys() { local file="$1"; [[ -f "$file" ]] || return 0; sed -n -E 's/^([A-Za-z_][A-Za-z0-9_]*)=.*/\1/p' "$file" | sort -u; }
-site_ops_env_diff_keys() { local old="$1" new="$2"; comm -3 <(site_ops_env_keys "$old") <(site_ops_env_keys "$new") | sed 's/^\t//' | sort -u; }
+site_ops_env_value() { local file="$1" key="$2"; awk -v key="$key" 'index($0,key "=")==1 {print substr($0,length(key)+2); found=1; exit} END {if (!found) exit 1}' "$file"; }
+site_ops_env_diff_keys() {
+  local old="$1" new="$2" key old_value new_value
+  while IFS= read -r key; do
+    [[ -n "$key" ]] || continue
+    old_value="$(site_ops_env_value "$old" "$key" 2>/dev/null || true)"
+    new_value="$(site_ops_env_value "$new" "$key" 2>/dev/null || true)"
+    if ! grep -qE "^${key}=" "$old" 2>/dev/null || ! grep -qE "^${key}=" "$new" 2>/dev/null || [[ "$old_value" != "$new_value" ]]; then
+      printf '%s\n' "$key"
+    fi
+  done < <(cat <(site_ops_env_keys "$old") <(site_ops_env_keys "$new") | sort -u)
+}
 
 site_ops_env_apply() {
   require_root
@@ -48,7 +91,7 @@ site_ops_env_apply() {
   local path env backup keys compose_sensitive=0; path="$(site_runtime_path "$site")"; env="$path/.env"; [[ -f "$env" ]] || die "Site thiếu .env: $path"
   backup="$(mktemp)"; cp -p "$env" "$backup"; keys="$(site_ops_env_diff_keys "$env" "$source_file")"
   grep -Eq '^(APP_|DB_|REDIS_|CACHE_|SESSION_|QUEUE_|BROADCAST_|VITE_|HTTP_PORT|SOCKET_PORT|COMPOSE_)' <<<"$keys" && compose_sensitive=1 || true
-  echo "Changed/added/removed keys (values redacted):"; if [[ -n "$keys" ]]; then printf '%s\n' "$keys" | sed 's/^/  - /'; else echo "  (none detected by key set)"; fi
+  echo "Changed/added/removed keys (values redacted):"; if [[ -n "$keys" ]]; then printf '%s\n' "$keys" | sed 's/^/  - /'; else echo "  (none)"; fi
   echo "Runtime reconcile required: $compose_sensitive"; [[ "$dry" -eq 0 ]] || { rm -f "$backup"; echo "[DRY-RUN] .env unchanged."; return 0; }
   [[ "$yes" -eq 1 ]] || site_confirm "Apply .env update?" || { rm -f "$backup"; die "Đã hủy."; }
   cp "$source_file" "$env"; site_provision_apply_env_permissions "$env"
