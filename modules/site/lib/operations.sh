@@ -36,8 +36,26 @@ site_ops_runtime_owned_overlay() {
   grep -Fxq "$absolute" <<<"$runtime_files"
 }
 
+# Legacy platform releases could leave service-specific overlay placeholders.
+# Only the exact known legacy filenames are eligible, and only when the file is
+# semantically empty (comments/blank lines plus `services: {}`) and is NOT part
+# of the active Compose runtime. A non-empty overlay always remains blocking.
+site_ops_stale_empty_legacy_overlay() {
+  local path="$1" candidate="$2" runtime_files="$3" absolute normalized
+  case "$candidate" in
+    compose.queue.yaml|compose.queue.yml|compose.scheduler.yaml|compose.scheduler.yml|compose.socket.yaml|compose.socket.yml) ;;
+    *) return 1 ;;
+  esac
+  [[ -f "$path/$candidate" ]] || return 1
+  absolute="$(readlink -f "$path/$candidate" 2>/dev/null || true)"
+  [[ -n "$absolute" ]] || return 1
+  grep -Fxq "$absolute" <<<"$runtime_files" && return 1
+  normalized="$(sed -E 's/[[:space:]]+#.*$//; /^[[:space:]]*#/d; /^[[:space:]]*$/d; s/^[[:space:]]+//; s/[[:space:]]+$//' "$path/$candidate")"
+  [[ "$normalized" == 'services: {}' ]]
+}
+
 site_ops_dirty_report() {
-  local site="$1" path="$2" status tracked untracked runtime_files managed="" blocking="" file
+  local site="$1" path="$2" status tracked untracked runtime_files managed="" stale="" blocking="" file
   status="$(git -C "$path" status --porcelain --untracked-files=all)"
   [[ -n "$status" ]] || return 1
   tracked="$(printf '%s\n' "$status" | awk 'substr($0,1,2) != "??" {print substr($0,4)}')"
@@ -48,15 +66,23 @@ site_ops_dirty_report() {
     [[ -n "$file" ]] || continue
     if site_ops_runtime_owned_overlay "$path" "$file" "$runtime_files"; then
       managed+="${managed:+$'\n'}$file"
+    elif site_ops_stale_empty_legacy_overlay "$path" "$file" "$runtime_files"; then
+      stale+="${stale:+$'\n'}$file"
     else
       blocking+="${blocking:+$'\n'}$file"
     fi
   done <<<"$untracked"
 
   if [[ -n "$managed" ]]; then
-    echo "RUNTIME-MANAGED OVERLAYS (verified from live Docker Compose labels):"
+    echo "ACTIVE RUNTIME-MANAGED OVERLAYS (verified from live Docker Compose labels):"
     printf '%s\n' "$managed" | sed 's/^/  - /'
-    echo "[OK] Các overlay này được giữ nguyên và không làm BLOCK Update Site."
+    echo "[OK] Các overlay active này được giữ nguyên và không làm BLOCK Update Site."
+  fi
+  if [[ -n "$stale" ]]; then
+    echo "STALE EMPTY PLATFORM OVERLAYS (legacy placeholders; not active runtime):"
+    printf '%s\n' "$stale" | sed 's/^/  - /'
+    echo "[WARNING] Các file rỗng legacy này không làm BLOCK Update Site và KHÔNG bị tự động xóa."
+    echo "          Có thể dọn riêng bằng Production Cleanup sau khi preview/confirm."
   fi
 
   [[ -z "$tracked" && -z "$blocking" ]] && return 1
@@ -64,9 +90,9 @@ site_ops_dirty_report() {
   echo "UPDATE SITE — BLOCKED: WORKING TREE NOT CLEAN"
   echo "========================================================="
   if [[ -n "$tracked" ]]; then echo "TRACKED MODIFIED / STAGED:"; printf '%s\n' "$tracked" | sed 's/^/  - /'; fi
-  if [[ -n "$blocking" ]]; then echo "UNTRACKED (NOT VERIFIED AS RUNTIME-MANAGED):"; printf '%s\n' "$blocking" | sed 's/^/  - /'; fi
-  echo "Không tự git add, git clean hoặc xóa các file trên."
-  echo "Update bị BLOCK để bảo vệ local changes và runtime overlays chưa xác minh."
+  if [[ -n "$blocking" ]]; then echo "UNKNOWN / NON-EMPTY UNTRACKED (BLOCKING):"; printf '%s\n' "$blocking" | sed 's/^/  - /'; fi
+  echo "Không tự git add, git clean hoặc xóa các file blocking trên."
+  echo "Update bị BLOCK để bảo vệ local changes hoặc runtime overlays chưa xác minh."
   return 0
 }
 
