@@ -12,4 +12,15 @@ source "$PLATFORM_HOME/modules/site/lib/runtime.sh"
 # helpers before the behavior is validated on a real managed site.
 source "$PLATFORM_HOME/modules/site/lib/deploy-readiness.sh"
 source "$PLATFORM_HOME/modules/site/lib/operations.sh"
-site_ops_update "$@"
+source "$PLATFORM_HOME/modules/site/lib/reconcile.sh"
+
+reconcile=0
+for arg in "$@"; do
+  [[ "$arg" == "--reconcile" ]] && reconcile=1
+done
+
+if [[ "$reconcile" -eq 1 ]]; then
+  site_ops_reconcile "$@"
+else
+  site_ops_update "$@"
+fi
