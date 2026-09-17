@@ -19,9 +19,10 @@ grep -q 'config --services' "$ROOT/modules/site/lib/runtime.sh"
 grep -q 'merge --ff-only' "$ops"
 grep -q 'com.docker.compose.project.config_files' "$ops"
 grep -q 'com.docker.compose.project=' "$ops"
-grep -q 'RUNTIME-MANAGED OVERLAYS' "$ops"
-grep -q 'verified from live Docker Compose labels' "$ops"
-grep -q 'UNTRACKED (NOT VERIFIED AS RUNTIME-MANAGED)' "$ops"
+grep -q 'ACTIVE RUNTIME-MANAGED OVERLAYS' "$ops"
+grep -q 'STALE EMPTY PLATFORM OVERLAYS' "$ops"
+grep -q 'UNKNOWN / NON-EMPTY UNTRACKED (BLOCKING)' "$ops"
+grep -q 'KHÔNG bị tự động xóa' "$ops"
 grep -q 'Changed/added/removed keys (values redacted)' "$ops"
 grep -q 'old_value.*new_value' "$ops"
 grep -q 'old_value.*!=.*new_value' "$ops"
@@ -53,12 +54,34 @@ grep -qx 'REMOVED' <<<"$diff_keys"
 ! grep -q 'UNCHANGED' <<<"$diff_keys"
 ! grep -q 'old-super-secret\|new-super-secret' <<<"$diff_keys"
 
-# Ownership matcher is exact-path and Compose-overlay-only; no wildcard trust.
+# Active ownership matcher is exact-path and Compose-overlay-only; no wildcard trust.
 mkdir -p "$tmp/site"
-touch "$tmp/site/compose.queue.yaml" "$tmp/site/random.txt"
-runtime_files="$(readlink -f "$tmp/site/compose.queue.yaml")"
-site_ops_runtime_owned_overlay "$tmp/site" 'compose.queue.yaml' "$runtime_files"
+touch "$tmp/site/compose.active.yaml" "$tmp/site/random.txt"
+runtime_files="$(readlink -f "$tmp/site/compose.active.yaml")"
+site_ops_runtime_owned_overlay "$tmp/site" 'compose.active.yaml' "$runtime_files"
 ! site_ops_runtime_owned_overlay "$tmp/site" 'random.txt' "$runtime_files"
 ! site_ops_runtime_owned_overlay "$tmp/site" 'compose.socket.yaml' "$runtime_files"
+
+# Exact known legacy placeholder + semantically empty content may be classified stale.
+printf 'services: {}\n' >"$tmp/site/compose.queue.yaml"
+printf '# legacy placeholder\n\nservices: {}   # empty\n' >"$tmp/site/compose.scheduler.yaml"
+site_ops_stale_empty_legacy_overlay "$tmp/site" 'compose.queue.yaml' "$runtime_files"
+site_ops_stale_empty_legacy_overlay "$tmp/site" 'compose.scheduler.yaml' "$runtime_files"
+
+# A non-empty legacy-named overlay must remain blocking.
+cat >"$tmp/site/compose.socket.yaml" <<'EOF'
+services:
+  socket:
+    image: example/socket
+EOF
+! site_ops_stale_empty_legacy_overlay "$tmp/site" 'compose.socket.yaml' "$runtime_files"
+
+# Unknown empty compose overlays are not trusted merely because they are empty.
+printf 'services: {}\n' >"$tmp/site/compose.unknown.yaml"
+! site_ops_stale_empty_legacy_overlay "$tmp/site" 'compose.unknown.yaml' "$runtime_files"
+
+# An exact legacy file that becomes active runtime is active, not stale.
+runtime_queue="$(readlink -f "$tmp/site/compose.queue.yaml")"
+! site_ops_stale_empty_legacy_overlay "$tmp/site" 'compose.queue.yaml' "$runtime_queue"
 
 echo "PASS production-site-operations-v2 contract"
