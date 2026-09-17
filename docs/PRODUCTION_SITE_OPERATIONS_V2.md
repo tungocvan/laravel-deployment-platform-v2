@@ -27,7 +27,13 @@ The interactive Sites menu also exposes `Reconcile / Resume Runtime`. The UI alw
 
 ## Environment
 
-`platform site env <site> <env-file> --dry-run` reports only changed/added/removed key names. Values are never printed. Apply mode checkpoints the existing `.env`, preserves runtime permissions, reconciles Compose without build when environment-sensitive keys changed, refreshes Laravel config and restores the checkpoint if health validation fails.
+The Sites UI is site-aware. After selecting a site, operators can list current key names with values redacted, edit/add/remove variables through a staging copy, or explicitly import another `.env` file. Production `.env` is never opened directly by the staging editor. Staged edits are previewed as a key-only diff and require confirmation before apply.
+
+`platform site env <site> <env-file> --dry-run` reports only changed/added/removed key names. Values are never printed. Apply mode checkpoints the existing `.env`, preserves runtime permissions, refreshes Laravel config and validates runtime health.
+
+Environment impact classification is Compose-aware rather than prefix-based. Platform inspects the Compose files that own the live runtime (falling back to conventional root Compose files when live labels are unavailable) and extracts the `${VARIABLE}` keys actually interpolated by Compose. A changed key triggers `docker compose up -d --no-build --remove-orphans` only when it is consumed by Compose or is an explicit runtime endpoint/control key (`APP_URL`, `HTTP_PORT`, `SOCKET_PORT`, `COMPOSE_*`). Application-only keys therefore use the lighter path: update `.env`, refresh Laravel configuration, restart queue application state and validate health without Compose reconcile.
+
+Repository helper `run-updated-env.sh --smart`, when present, may provide the same optimized application-level workflow, but remains optional. Platform does not depend on that helper and keeps its native classifier for managed sites without repository helpers.
 
 ## Diagnostics, Artisan, Runtime
 
@@ -45,8 +51,10 @@ Production Runtime Reconcile exists specifically for a partial-update state wher
 
 ## Acceptance evidence — 2026-09-17
 
-Targeted `production-operations-contract.sh` and interactive UI were reported PASS after the final Reconcile / Resume Runtime flow was added.
+Targeted `production-operations-contract.sh` and interactive UI were reported PASS after the final Reconcile / Resume Runtime flow was added. The site-aware `.env` menu was subsequently reported UI PASS.
 
 Production site `tnv` also completed a real `--reconcile --yes` run end-to-end: Compose reconciled all discovered services, Laravel-native database readiness succeeded, optimize and queue restart completed, runtime health showed the managed services healthy, and Inventory sync completed while the application commit remained unchanged at `5b1a1040de6a25dc7fe35231748997233541ee02`.
 
 The three legacy empty overlays (`compose.queue.yaml`, `compose.scheduler.yaml`, `compose.socket.yaml`) were correctly reported as stale, non-active placeholders: they did not block the operation and were not automatically deleted.
+
+Application helper acceptance also exercised `run-updated-env.sh --smart` on `tnv`: changing application-only key `PRINCIPAL` produced `Compose reconcile required: 0`, refreshed Laravel configuration, restarted queue application state, allowed workers to stabilize, kept all discovered services healthy and updated its smart baseline without recreating/reconciling Compose. This evidence validates the intended classifier semantics; Platform remains independently operable without the helper.
