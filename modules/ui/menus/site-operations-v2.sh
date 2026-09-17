@@ -40,6 +40,28 @@ ui_flow_production_update() {
   ui_pause
 }
 
+ui_flow_production_reconcile() {
+  local site rc=0
+  site="$(ui_select_site "Chọn site cần RECONCILE / RESUME runtime")" || return 0
+
+  echo "[INFO] Reconcile chỉ phục hồi các bước runtime hậu-update."
+  echo "       Không Git mutation, không Docker build và không database migration."
+  echo
+  ui_run_sudo site update "$site" --reconcile --dry-run || rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    echo
+    echo "[BLOCKED] Preview Runtime Reconcile không đạt safety checks (exit=$rc). Không apply."
+    ui_pause
+    return 0
+  fi
+
+  echo
+  if ui_confirm_execute "RECONCILE / RESUME RUNTIME: $site"; then
+    ui_run_sudo site update "$site" --reconcile --yes
+  fi
+  ui_pause
+}
+
 ui_menu_sites() {
   while true; do
     ui_header
@@ -55,6 +77,7 @@ ui_menu_sites() {
   5) Run Artisan — app service auto-discovery
   6) Runtime / Docker Status — topology + health + ports
   7) Production Cleanup — report-only mặc định
+ 25) Reconcile / Resume Runtime — recovery hậu-update, no Git/build/migrate
 
   INSPECTION / LIFECYCLE
   ----------------------
@@ -111,6 +134,7 @@ EOF
       22) ui_flow_bootstrap_repository ;;
       23) ui_flow_sync_repositories ;;
       24) ui_flow_repository_access ;;
+      25) ui_flow_production_reconcile ;;
       0) return 0 ;;
     esac
   done
