@@ -8,6 +8,9 @@ export PLATFORM_DEFAULT_SITE_REPO="${PLATFORM_DEFAULT_SITE_REPO:-$(site_canonica
 source "$PLATFORM_HOME/modules/ui/lib/ui.sh"
 source "$PLATFORM_HOME/modules/ui/flows/repository-access.sh"
 source "$PLATFORM_HOME/modules/ui/menus/sites.sh"
+# Production Site Operations V2 is loaded after the legacy Sites menu so it can
+# replace only ui_menu_sites() while reusing all established lifecycle flows.
+source "$PLATFORM_HOME/modules/ui/menus/site-operations-v2.sh"
 source "$PLATFORM_HOME/modules/ui/flows/bootstrap-repository.sh"
 source "$PLATFORM_HOME/modules/ui/menus/backup.sh"
 source "$PLATFORM_HOME/modules/ui/menus/deploy.sh"

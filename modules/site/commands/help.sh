@@ -5,13 +5,33 @@ cat <<'EOF'
 USAGE
   platform site <command> [options]
 
-COMMANDS
+PRODUCTION OPERATIONS
   create --name=... --domain=... [--repo=...] [options]
+  update <site> [--dry-run] [--migrate] [--yes]
+  env <site> <env-file> [--dry-run] [--yes]
+  diagnostics <site>
+  artisan <site> <artisan-command...>
+  runtime <site>
+  cleanup <site> [--apply] [--yes]
+
+INSPECTION
   list
   show <name|domain|path>
   exec <site> <command...>
   doctor <site>
   duplicate --from=... --name=... --domain=... [options]
+
+UPDATE SAFETY
+  - Working tree phải sạch; không git clean/reset tự động.
+  - Git update chỉ fast-forward.
+  - Migration mới bị BLOCK nếu không truyền --migrate.
+  - --migrate tạo verified backup trước khi chạy migrate --force.
+  - Build chỉ chạy khi change classification yêu cầu.
+
+ENV SAFETY
+  - Preview chỉ hiển thị key names; không in secret values.
+  - Runtime reconcile dùng Compose up --no-build khi cần.
+  - Health fail sẽ khôi phục .env checkpoint.
 
 CREATE OPTIONS
   --repo=<git-url>        default: git@github.com:tungocvan/laravel-shop.git
@@ -39,32 +59,22 @@ ARCHIVE
 
 PURGE
   purge <archived-site> [options]
-      Permanent resource destruction for archived sites.
-
   purge <active-site> --force-active --yes
-      Purge an active site directly without archiving first.
-      Backup safety remains enabled unless --no-backup is explicitly used.
 
 PURGE OPTIONS
   --dry-run
   --yes
-  --force-active   # required when source state is active inventory
+  --force-active
   --keep-source
   --keep-volumes
   --keep-ssl
-  --no-backup      # dangerous, requires --yes
+  --no-backup
 
 EXAMPLES
-  site create --name=demo --domain=demo.example.com --dry-run
-  site create --name=demo --domain=demo.example.com --yes
-  site create --name=demo --domain=demo.example.com --repo=git@github.com:org/app.git --yes
-
-RECOMMENDED
-  site archive <site>
-  site purge <site> --dry-run
-  site purge <site> --yes
-
-FORCE ACTIVE
-  site purge <site> --force-active --dry-run
-  site purge <site> --force-active --yes
+  platform site update demo --dry-run
+  platform site update demo --migrate --yes
+  platform site diagnostics demo
+  platform site artisan demo about
+  platform site runtime demo
+  platform site cleanup demo
 EOF
