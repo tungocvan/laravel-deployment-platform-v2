@@ -55,6 +55,15 @@ grep -q 'inventory_sync' "$reconcile"
 grep -q -- '--migrate không được phép cùng --reconcile' "$reconcile"
 ! grep -Eq 'git .*fetch|git .*merge|deploy_compose .* build|migrate --force|backup_create' "$reconcile"
 
+# UI exposes an explicit recovery path and always previews before apply.
+grep -q 'ui_flow_production_reconcile' "$menu"
+grep -q 'Reconcile / Resume Runtime' "$menu"
+grep -q 'Không Git mutation, không Docker build và không database migration' "$menu"
+grep -q 'site update.*--reconcile --dry-run.*|| rc=' "$menu"
+grep -q 'RECONCILE / RESUME RUNTIME' "$menu"
+grep -q 'site update.*--reconcile --yes' "$menu"
+grep -q '25) ui_flow_production_reconcile' "$menu"
+
 # Functional env comparator: changed values report key names only, never values.
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 cat >"$tmp/old.env" <<'EOF'
