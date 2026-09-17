@@ -81,6 +81,13 @@ grep -q 'site_ops_env_apply "$site" "$staged" --dry-run' "$env_management"
 grep -q 'site_ops_env_apply "$site" "$staged" --yes' "$env_management"
 ! grep -q 'cat "$env"' "$env_management"
 
+# Env impact is Compose-aware: app-only keys do not force runtime reconcile,
+# while actual Compose interpolation and endpoint keys do.
+grep -q 'site_ops_env_compose_keys' "$ops"
+grep -q 'site_ops_env_requires_reconcile' "$ops"
+grep -q 'site_ops_runtime_config_files' "$ops"
+! grep -q "grep -Eq '\^(APP_|DB_|REDIS_|CACHE_|SESSION_|QUEUE_|BROADCAST_|VITE_" "$ops"
+
 # Functional env comparator: changed values report key names only, never values.
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 cat >"$tmp/old.env" <<'EOF'
@@ -112,5 +119,21 @@ EOF
 ! site_ops_stale_empty_legacy_overlay "$tmp/site" 'compose.socket.yaml' "$runtime_files"
 printf 'services: {}\n' >"$tmp/site/compose.unknown.yaml"; ! site_ops_stale_empty_legacy_overlay "$tmp/site" 'compose.unknown.yaml' "$runtime_files"
 runtime_queue="$(readlink -f "$tmp/site/compose.queue.yaml")"; ! site_ops_stale_empty_legacy_overlay "$tmp/site" 'compose.queue.yaml' "$runtime_queue"
+
+# Exercise the classifier without Docker by forcing conventional Compose fallback.
+cat >"$tmp/site/compose.yaml" <<'EOF'
+services:
+  app:
+    environment:
+      DB_HOST: ${DB_HOST:-db}
+      FEATURE_FLAG: ${FEATURE_FLAG:-off}
+EOF
+site_ops_runtime_config_files() { return 0; }
+! site_ops_env_requires_reconcile demo "$tmp/site" 'PRINCIPAL'
+site_ops_env_requires_reconcile demo "$tmp/site" 'DB_HOST'
+site_ops_env_requires_reconcile demo "$tmp/site" 'FEATURE_FLAG'
+site_ops_env_requires_reconcile demo "$tmp/site" 'APP_URL'
+site_ops_env_requires_reconcile demo "$tmp/site" 'HTTP_PORT'
+site_ops_env_requires_reconcile demo "$tmp/site" 'COMPOSE_PROJECT_NAME'
 
 echo "PASS production-site-operations-v2 contract"
