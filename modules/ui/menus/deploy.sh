@@ -161,6 +161,7 @@ ui_deploy_wizard() {
   1) Update Code from GitHub — fetch + fast-forward source, không tự deploy
 
   2) Full Deploy — build images + Docker up + migrate + optimize + runtime/HTTP health
+     Đồng bộ app + queue-* + scheduler; chặn deploy nếu worker còn chạy image/entrypoint cũ.
      Dùng khi source/build/container thay đổi; đây là quy trình đầy đủ và lâu hơn.
 
   3) Backend / Laravel Runtime (Migrate, Optimize/Reload .env, Health)
