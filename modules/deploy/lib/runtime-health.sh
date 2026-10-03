@@ -42,16 +42,50 @@ deploy_restart_web_proxy_path() {
   echo "[OK] runtime web"
 }
 
+deploy_php_runtime_services_path() {
+  local project_dir="$1" service
+  local -a services=()
+
+  while IFS= read -r service; do
+    case "$service" in
+      app|queue|queue-*|scheduler) services+=("$service") ;;
+    esac
+  done < <(deploy_compose "$project_dir" config --services 2>/dev/null)
+
+  printf '%s\n' "${services[@]}"
+}
+
+deploy_verify_php_runtime_consistency_path() {
+  local project_dir="$1" service app_fingerprint fingerprint
+  local -a services=()
+
+  mapfile -t services < <(deploy_php_runtime_services_path "$project_dir")
+  [[ " ${services[*]} " == *" app "* ]] || die "Compose project không có service app."
+
+  app_fingerprint="$(deploy_compose "$project_dir" exec -T app sh -lc '
+    test -f /usr/local/bin/entrypoint || exit 2
+    sha256sum /usr/local/bin/entrypoint | awk "{print \$1}"
+  ' 2>/dev/null)" || die "Không đọc được runtime fingerprint của app."
+
+  for service in "${services[@]}"; do
+    fingerprint="$(deploy_compose "$project_dir" exec -T "$service" sh -lc '
+      test -f /usr/local/bin/entrypoint || exit 2
+      sha256sum /usr/local/bin/entrypoint | awk "{print \$1}"
+    ' 2>/dev/null)" || die "Không đọc được runtime fingerprint của $service."
+
+    if [[ "$fingerprint" != "$app_fingerprint" ]]; then
+      die "Runtime image không đồng bộ: $service có entrypoint khác app. Hãy Full Deploy để rebuild/recreate toàn bộ PHP runtime."
+    fi
+    echo "[OK] runtime image contract $service"
+  done
+}
+
 deploy_restart_php_runtime_path() {
   local project_dir="$1" timeout="${2:-120}"
   local service
   local -a services=()
 
-  for service in app queue queue-admission-documents scheduler; do
-    if deploy_runtime_service_exists "$project_dir" "$service"; then
-      services+=("$service")
-    fi
-  done
+  mapfile -t services < <(deploy_php_runtime_services_path "$project_dir")
 
   [[ " ${services[*]} " == *" app "* ]] || die "Compose project không có service app."
 
@@ -148,15 +182,15 @@ deploy_health_path() {
     fi
   done
 
-  for service in queue queue-admission-documents scheduler; do
-    deploy_runtime_service_exists "$project_dir" "$service" || continue
+  while IFS= read -r service; do
+    [[ "$service" == "app" ]] && continue
     if deploy_compose "$project_dir" ps "$service" 2>/dev/null | grep -Eq 'healthy|running|Up'; then
       echo "[OK] worker $service"
     else
       echo "[ERROR] worker $service"
       errors=$((errors+1))
     fi
-  done
+  done < <(deploy_php_runtime_services_path "$project_dir")
 
   if deploy_compose "$project_dir" exec -T app php artisan about --no-ansi >/dev/null 2>&1; then
     echo "[OK] Laravel boot"
@@ -166,6 +200,10 @@ deploy_health_path() {
   fi
 
   [[ "$errors" -eq 0 ]] || die "Deploy health phát hiện $errors lỗi trước HTTP verification."
+
+  # Full Deploy must never succeed with a freshly rebuilt app while a queue or
+  # scheduler is still running an older image/entrypoint against shared state.
+  deploy_verify_php_runtime_consistency_path "$project_dir"
 
   # Repair the shared-volume public disk after every recreate/restart and prove
   # that the separate Nginx container can serve a file through /storage/*.
