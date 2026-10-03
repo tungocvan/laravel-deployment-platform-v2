@@ -17,6 +17,7 @@ done
 
 for fn in \
   deploy_runtime_service_exists deploy_wait_service_ready_path \
+  deploy_php_runtime_services_path deploy_verify_php_runtime_consistency_path \
   deploy_restart_web_proxy_path deploy_restart_php_runtime_path \
   deploy_resolve_http_port_path deploy_verify_application_http_path \
   deploy_optimize_path deploy_health_path
@@ -27,6 +28,13 @@ done
 for fn in deploy_storage_normalize_path deploy_storage_verify_path deploy_storage_repair; do
   grep -q "^${fn}()" "$S" || { echo "[ERROR] Missing storage contract $fn"; exit 1; }
 done
+
+# Contract: every PHP runtime service (including queue-* variants) participates
+# in restart/health and must share the app entrypoint fingerprint. This prevents
+# an old worker image from mutating shared storage after app was rebuilt.
+grep -Fq 'app|queue|queue-*|scheduler' "$R" || { echo '[ERROR] Missing dynamic PHP runtime service discovery'; exit 1; }
+grep -Fq 'deploy_verify_php_runtime_consistency_path "$project_dir"' "$R" || { echo '[ERROR] Missing runtime image consistency gate'; exit 1; }
+grep -Fq 'Runtime image không đồng bộ' "$R" || { echo '[ERROR] Missing stale runtime failure contract'; exit 1; }
 
 # Contract: config cache refresh must be followed by PHP runtime restart.
 grep -Fq 'Restart PHP runtime after cache refresh' "$R" || { echo '[ERROR] Missing PHP runtime restart contract'; exit 1; }
@@ -151,4 +159,4 @@ if deploy_verify_application_http_path "$TMP" 0 >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "[OK] Deploy Module v1.3 runtime + public storage + application HTTP gate"
+echo "[OK] Deploy Module v1.4 runtime image consistency + public storage + application HTTP gate"
