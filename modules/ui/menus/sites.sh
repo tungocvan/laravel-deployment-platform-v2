@@ -176,20 +176,34 @@ ui_flow_purge() {
 }
 
 ui_flow_purge_force() {
-  local site
+  local site backup=1
   site="$(ui_select_site "Chọn ACTIVE SITE cần PURGE FORCE")" || return 0
 
+  echo
+  ui_yesno "Tạo backup cuối cùng trước khi PURGE FORCE?" "Y" || backup=0
+
+  local args=(site purge "$site" --force-active)
+  if [[ "$backup" -eq 0 ]]; then
+    args+=(--no-backup)
+  fi
+
   ui_section "PURGE FORCE DRY-RUN"
-  ui_run_sudo site purge "$site" --force-active --dry-run || { ui_pause; return; }
+  ui_run_sudo "${args[@]}" --dry-run || { ui_pause; return; }
 
   echo
   echo "CẢNH BÁO NGHIÊM TRỌNG: PURGE FORCE xoá trực tiếp active site, KHÔNG cần Archive."
-  echo "Backup safety vẫn được giữ và purge history vẫn được ghi."
+  if [[ "$backup" -eq 1 ]]; then
+    echo "Backup cuối cùng là bắt buộc; nếu backup/verify lỗi thì purge sẽ dừng."
+  else
+    echo "CẢNH BÁO: Bạn đã chọn PURGE KHÔNG BACKUP."
+    echo "Database, source và Docker volumes có thể bị xoá vĩnh viễn."
+  fi
+  echo "Purge history vẫn được ghi."
   local typed
   read -r -p "Nhập chính xác '$site' để PURGE FORCE: " typed
   [[ "$typed" == "$site" ]] || { echo "[INFO] Đã hủy."; ui_pause; return; }
 
-  ui_run_sudo site purge "$site" --force-active --yes
+  ui_run_sudo "${args[@]}" --yes
   ui_pause
 }
 
@@ -293,3 +307,5 @@ ui_flow_sync_repositories() {
     ui_run_sudo git sync-repositories "--from=$source_repo" "--to=$target_repo" --yes
   ui_pause
 }
+
+

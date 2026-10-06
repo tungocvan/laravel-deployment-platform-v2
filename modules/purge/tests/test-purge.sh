@@ -19,6 +19,8 @@ grep -q 'backup_verify' "$F"
 grep -q 'down -v --remove-orphans' "$F"
 grep -q -- '--force-active' "$F"
 grep -q 'PURGE.ACTIVE_REQUIRES_FORCE' "$F"
+grep -Fq '[[ "$do_backup" -eq 0 && "$auto_yes" -ne 1 && "$dry_run" -ne 1 ]]' "$F"
+grep -q -- '--no-backup bắt buộc đi cùng --yes khi thực thi.' "$F"
 grep -q 'PURGE.SOURCE_PATH_UNMANAGED' "$F"
 grep -q 'PURGE.NGINX_FOREIGN_CONFIG' "$F"
 grep -q '/opt/\$slug/repo' "$F"
@@ -69,7 +71,13 @@ fallback_line="$(grep -n 'if \[\[ -f "$project_path/\.env\.example"' "$PROVISION
 
 grep -q 'Purge Force (active site)' "$UI"
 grep -q 'ui_flow_purge_force()' "$UI"
+grep -q 'Tạo backup cuối cùng trước khi PURGE FORCE?' "$UI"
+grep -q 'args+=(--no-backup)' "$UI"
+grep -q 'PURGE KHÔNG BACKUP' "$UI"
+grep -q 'ui_run_sudo "\${args\[@\]}" --dry-run' "$UI"
+grep -q 'ui_run_sudo "\${args\[@\]}" --yes' "$UI"
 grep -q 'site purge .*--force-active --yes' "$HELP"
+
 
 bash -n "$F"
 bash -n "$POLICY"

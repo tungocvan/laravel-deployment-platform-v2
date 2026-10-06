@@ -154,12 +154,50 @@ site_ops_env_apply() {
 site_ops_diagnostics() { local site="${1:-}" path; [[ -n "$site" ]] || die "USAGE: platform site diagnostics <site>"; path="$(site_runtime_path "$site")"; site_runtime_status "$site"; echo; echo "----- GIT -----"; git -C "$path" status -sb || true; git -C "$path" log -1 --oneline || true; echo; echo "----- RUNTIME-MANAGED COMPOSE FILES -----"; site_ops_runtime_config_files "$site" "$path" | sed "s#^$path/##" | sed 's/^/  - /' || true; echo; echo "----- LARAVEL -----"; local app; app="$(site_runtime_app_service "$path" 2>/dev/null || true)"; [[ -n "$app" ]] && deploy_compose "$path" exec -T "$app" php artisan about --only=environment 2>/dev/null || true; echo; echo "----- RECENT LOGS -----"; deploy_compose "$path" logs --tail=80 2>/dev/null || true; }
 
 site_ops_cleanup() {
-  local site="${1:-}"; shift || true; [[ -n "$site" ]] || die "USAGE: platform site cleanup <site> [--apply] [--yes]"
-  local apply=0 yes=0 arg path log_bytes; for arg in "$@"; do case "$arg" in --apply) apply=1;; --yes) yes=1;; *) die "Option không hợp lệ: $arg";; esac; done
-  path="$(site_runtime_path "$site")"; log_bytes="$(du -sb "$path/storage/logs" 2>/dev/null | awk '{print $1}' || echo 0)"
-  echo "Cleanup scope: site-local Laravel logs/cache only"; echo "Laravel log bytes: ${log_bytes:-0}"; echo "Docker image/build-cache cleanup: HOST-WIDE and intentionally NOT automatic here."; echo "Docker volumes: NEVER pruned by this operation."
-  [[ "$apply" -eq 1 ]] || { echo "[REPORT-ONLY] Use --apply --yes to rotate Laravel logs and clear application caches."; return 0; }
-  require_root; [[ "$yes" -eq 1 ]] || site_confirm "Apply site-local cleanup?" || die "Đã hủy."
-  find "$path/storage/logs" -type f -name '*.log' -size +20M -exec sh -c ': > "$1"' _ {} \; 2>/dev/null || true
-  local app; app="$(site_runtime_app_service "$path")"; deploy_compose "$path" exec -T "$app" env CACHE_STORE=array CACHE_DRIVER=array php artisan optimize:clear; success "Production cleanup site-local hoàn tất: $site"
+  local site="${1:-}"; shift || true
+  [[ -n "$site" ]] || die "USAGE: platform site cleanup <site> [--apply|--docker|--all] [--yes]"
+
+  local mode="--report" yes=0 arg path script app
+  for arg in "$@"; do
+    case "$arg" in
+      --apply) mode="--logs" ;;
+      --docker) mode="--docker" ;;
+      --all) mode="--all" ;;
+      --yes) yes=1 ;;
+      *) die "Option không hợp lệ: $arg" ;;
+    esac
+  done
+
+  path="$(site_runtime_path "$site")"
+  script="$path/production-cleanup.sh"
+  [[ -f "$script" ]] || die "Site thiếu production-cleanup.sh: $script"
+  [[ -x "$script" ]] || die "production-cleanup.sh chưa có quyền execute: $script"
+
+  echo "Cleanup script: $script"
+  echo "Cleanup mode  : $mode"
+  echo "Docker volumes: NEVER pruned by production-cleanup.sh."
+
+  if [[ "$mode" == "--report" ]]; then
+    (cd "$path" && "$script" --report)
+    echo
+    echo "[REPORT-ONLY] Use --apply --yes for site-local logs/cache."
+    echo "              Use --docker --yes or --all --yes only for explicit HOST-WIDE Docker cleanup."
+    return 0
+  fi
+
+  require_root
+  [[ "$yes" -eq 1 ]] || site_confirm "Apply production cleanup $mode for $site?" || die "Đã hủy."
+
+  if [[ "$mode" == "--docker" || "$mode" == "--all" ]]; then
+    warn "Docker cleanup is HOST-WIDE. Script never prunes volumes."
+  fi
+
+  (cd "$path" && "$script" "$mode")
+
+  if [[ "$mode" == "--logs" || "$mode" == "--all" ]]; then
+    app="$(site_runtime_app_service "$path")"
+    deploy_compose "$path" exec -T "$app" env CACHE_STORE=array CACHE_DRIVER=array php artisan optimize:clear
+  fi
+
+  success "Production cleanup hoàn tất: $site ($mode)"
 }

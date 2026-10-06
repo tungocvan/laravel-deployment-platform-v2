@@ -181,8 +181,8 @@ site_purge() {
     esac
   done
 
-  if [[ "$do_backup" -eq 0 && "$auto_yes" -ne 1 ]]; then
-    die "--no-backup bắt buộc đi cùng --yes."
+  if [[ "$do_backup" -eq 0 && "$auto_yes" -ne 1 && "$dry_run" -ne 1 ]]; then
+    die "--no-backup bắt buộc đi cùng --yes khi thực thi."
   fi
   if [[ "$force_active" -eq 1 && "$auto_yes" -ne 1 && "$dry_run" -ne 1 ]]; then
     die "--force-active bắt buộc đi cùng --yes khi thực thi."
