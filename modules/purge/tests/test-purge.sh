@@ -69,6 +69,11 @@ fallback_line="$(grep -n 'if \[\[ -f "$project_path/\.env\.example"' "$PROVISION
 
 grep -q 'Purge Force (active site)' "$UI"
 grep -q 'ui_flow_purge_force()' "$UI"
+grep -q 'Tạo backup cuối cùng trước khi PURGE FORCE?' "$UI"
+grep -q 'args+=(--no-backup)' "$UI"
+grep -q 'PURGE KHÔNG BACKUP' "$UI"
+grep -q 'ui_run_sudo "\${args\[@\]}" --dry-run' "$UI"
+grep -q 'ui_run_sudo "\${args\[@\]}" --yes' "$UI"
 grep -q 'site purge .*--force-active --yes' "$HELP"
 
 bash -n "$F"
