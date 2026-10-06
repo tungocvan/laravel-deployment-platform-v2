@@ -78,6 +78,18 @@ grep -q 'ui_run_sudo "\${args\[@\]}" --dry-run' "$UI"
 grep -q 'ui_run_sudo "\${args\[@\]}" --yes' "$UI"
 grep -q 'site purge .*--force-active --yes' "$HELP"
 
+# Production cleanup menu must run each site's own production-cleanup.sh and
+# preserve the script's safe modes/host-wide Docker warning.
+grep -q 'Production Cleanup' "$UI"
+grep -q 'ui_flow_production_cleanup()' "$UI"
+grep -q 'inventory_get_field .* path' "$UI"
+grep -q 'production-cleanup.sh' "$UI"
+grep -q -- '--report' "$UI"
+grep -q -- '--logs' "$UI"
+grep -q -- '--docker' "$UI"
+grep -q -- '--all' "$UI"
+grep -q 'Docker cleanup là HOST-WIDE' "$UI"
+
 bash -n "$F"
 bash -n "$POLICY"
 bash -n "$CMD"
