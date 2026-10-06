@@ -93,6 +93,45 @@ ui_flow_production_reconcile() {
   ui_pause
 }
 
+ui_flow_production_cleanup() {
+  local site choice
+  site="$(ui_select_site "Chọn site cần PRODUCTION CLEANUP")" || return 0
+
+  ui_run site cleanup "$site" || { ui_pause; return; }
+  echo
+  cat <<'EOF'
+  1) Site cleanup — rotate Laravel log theo production-cleanup.sh + clear app cache
+  2) Docker cleanup — HOST-WIDE dangling images + build cache, không xóa volumes
+  3) All — site cleanup + HOST-WIDE Docker cleanup
+  0) Cancel
+EOF
+  read -r -p "Chọn chế độ cleanup: " choice
+
+  case "$choice" in
+    1)
+      ui_confirm_execute "SITE-LOCAL PRODUCTION CLEANUP: $site" &&
+        ui_run_sudo site cleanup "$site" --apply --yes
+      ;;
+    2)
+      echo
+      echo "CẢNH BÁO: Docker cleanup tác động HOST-WIDE."
+      echo "production-cleanup.sh chỉ prune dangling images/build cache và KHÔNG prune volumes."
+      ui_confirm_execute "HOST-WIDE DOCKER CLEANUP (selected from $site)" &&
+        ui_run_sudo site cleanup "$site" --docker --yes
+      ;;
+    3)
+      echo
+      echo "CẢNH BÁO: ALL bao gồm Docker cleanup HOST-WIDE."
+      echo "production-cleanup.sh KHÔNG prune volumes."
+      ui_confirm_execute "SITE + HOST-WIDE PRODUCTION CLEANUP: $site" &&
+        ui_run_sudo site cleanup "$site" --all --yes
+      ;;
+    0) return 0 ;;
+    *) echo "[ERROR] Lựa chọn không hợp lệ." ;;
+  esac
+  ui_pause
+}
+
 ui_menu_sites() {
   while true; do
     ui_header
@@ -147,7 +186,7 @@ EOF
       4) site="$(ui_select_site "Chọn site")" || continue; ui_run site diagnostics "$site"; ui_pause ;;
       5) site="$(ui_select_site "Chọn site")" || continue; cmd="$(ui_prompt "Artisan command (vd: about, route:list)")"; [[ -n "$cmd" ]] && ui_run_sudo site artisan "$site" $cmd; ui_pause ;;
       6) site="$(ui_select_site "Chọn site")" || continue; ui_run site runtime "$site"; ui_pause ;;
-      7) site="$(ui_select_site "Chọn site")" || continue; ui_run site cleanup "$site"; echo; ui_yesno "Thực thi cleanup site-local?" "N" && ui_run_sudo site cleanup "$site" --apply --yes; ui_pause ;;
+      7) ui_flow_production_cleanup ;;
       8) ui_run site list; ui_pause ;;
       9) site="$(ui_select_site "Chọn site cần xem")" || continue; ui_run site show "$site"; ui_pause ;;
       10) site="$(ui_select_site "Chọn site cần kiểm tra")" || continue; ui_run site doctor "$site"; ui_pause ;;
