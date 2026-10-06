@@ -12,7 +12,7 @@ PRODUCTION OPERATIONS
   diagnostics <site>
   artisan <site> <artisan-command...>
   runtime <site>
-  cleanup <site> [--apply] [--yes]
+  cleanup <site> [--apply|--docker|--all] [--yes]
 
 INSPECTION
   list
@@ -77,4 +77,7 @@ EXAMPLES
   platform site artisan demo about
   platform site runtime demo
   platform site cleanup demo
+  platform site cleanup demo --apply --yes
+  platform site cleanup demo --docker --yes
+  platform site cleanup demo --all --yes
 EOF
