@@ -36,6 +36,10 @@ ui_menu_sites() {
  17) Đồng bộ 2 kho Git — sync một chiều SOURCE/main → TARGET/main, fast-forward only
  18) Kiểm tra quyền repository / SSH key — test READ+WRITE+DELETE, tạo key riêng khi thiếu quyền
 
+  PRODUCTION MAINTENANCE
+  ----------------------
+ 19) Production Cleanup — chạy production-cleanup.sh cho site được chọn
+
   0) Back
 
 EOF
@@ -76,6 +80,7 @@ EOF
       16) ui_flow_bootstrap_repository ;;
       17) ui_flow_sync_repositories ;;
       18) ui_flow_repository_access ;;
+      19) ui_flow_production_cleanup ;;
       0) return 0 ;;
     esac
   done
@@ -306,4 +311,63 @@ ui_flow_sync_repositories() {
   ui_confirm_execute "SYNC REPOSITORIES: $source_repo → $target_repo" &&
     ui_run_sudo git sync-repositories "--from=$source_repo" "--to=$target_repo" --yes
   ui_pause
+}
+
+
+ui_flow_production_cleanup() {
+  local site path script choice mode=""
+  site="$(ui_select_site "Chọn ACTIVE SITE cần PRODUCTION CLEANUP")" || return 0
+  path="$(inventory_get_field "$site" path 2>/dev/null || true)"
+  [[ -n "$path" && -d "$path" ]] || { echo "[ERROR] Project path không tồn tại cho site: $site"; ui_pause; return; }
+
+  script="$path/production-cleanup.sh"
+  [[ -f "$script" ]] || { echo "[ERROR] Site không có production-cleanup.sh: $script"; ui_pause; return; }
+  [[ -x "$script" ]] || chmod +x "$script" || { echo "[ERROR] Không thể cấp quyền execute: $script"; ui_pause; return; }
+
+  ui_section "PRODUCTION CLEANUP — $site"
+  echo "Site   : $site"
+  echo "Path   : $path"
+  echo "Script : $script"
+  echo
+  echo "  1) Report — chỉ đọc, không xóa dữ liệu"
+  echo "  2) Logs — rotate Laravel log vượt ngưỡng của site này"
+  echo "  3) Docker — host-wide dangling images + build cache, KHÔNG xóa volumes"
+  echo "  4) All — Logs + Docker"
+  echo "  0) Cancel"
+  echo
+  read -r -p "Chọn chế độ cleanup: " choice
+
+  case "$choice" in
+    1) mode="--report" ;;
+    2) mode="--logs" ;;
+    3) mode="--docker" ;;
+    4) mode="--all" ;;
+    0) return 0 ;;
+    *) echo "[ERROR] Lựa chọn không hợp lệ."; ui_pause; return ;;
+  esac
+
+  if [[ "$mode" == "--docker" || "$mode" == "--all" ]]; then
+    echo
+    echo "CẢNH BÁO: Docker cleanup là HOST-WIDE."
+    echo "Script chỉ prune dangling images và build cache; KHÔNG prune volumes."
+    ui_confirm_execute "PRODUCTION CLEANUP $mode: $site" || { echo "[INFO] Đã hủy."; ui_pause; return; }
+  elif [[ "$mode" == "--logs" ]]; then
+    echo
+    ui_confirm_execute "ROTATE PRODUCTION LOGS: $site" || { echo "[INFO] Đã hủy."; ui_pause; return; }
+  fi
+
+  echo
+  echo "> $script $mode"
+  (
+    cd "$path"
+    "$script" "$mode"
+  )
+  local rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    echo "[OK] Production cleanup hoàn tất: $site ($mode)"
+  else
+    echo "[ERROR] Production cleanup thất bại: $site ($mode), exit=$rc"
+  fi
+  ui_pause
+  return "$rc"
 }
