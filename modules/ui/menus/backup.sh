@@ -11,26 +11,50 @@ ui_menu_backup() {
       ui_restore_state_show || true
       echo
       cat <<'EOF'
-  1) Resume last Restore
-  2) Create backup
-  3) List backups
-  4) Verify backup
-  5) Restore existing site
-  6) Restore as new site
-  7) Discard pending Restore
+  CẢNH BÁO: Có phiên khôi phục chưa hoàn tất. Kiểm tra trước khi tiếp tục.
 
-  0) Back
+  1) Tiếp tục lần khôi phục trước
+     Chạy lại kiểm tra an toàn trước khi tiếp tục phiên đang chờ.
+
+  2) Tạo bản sao lưu
+     Sao lưu website được chọn trước khi thay đổi dữ liệu.
+
+  3) Danh sách bản sao lưu
+     Xem các bản sao lưu hiện có của website.
+
+  4) Kiểm tra bản sao lưu
+     Xác minh bản sao lưu trước khi sử dụng.
+
+  5) Khôi phục website hiện tại — CẢNH BÁO
+     Xem trước và xác nhận trước khi khôi phục dữ liệu.
+
+  6) Khôi phục thành website mới
+     Tạo website mới từ bản sao lưu đã chọn.
+
+  7) Hủy phiên khôi phục đang chờ — CẢNH BÁO
+     Xóa trạng thái chờ sau khi xác nhận; không xóa bản backup.
+
+  0) Quay lại
 EOF
     else
       cat <<'EOF'
 
-  1) Create backup
-  2) List backups
-  3) Verify backup
-  4) Restore existing site
-  5) Restore as new site
+  1) Tạo bản sao lưu
+     Sao lưu website được chọn trước khi thay đổi dữ liệu.
 
-  0) Back
+  2) Danh sách bản sao lưu
+     Xem các bản sao lưu hiện có của website.
+
+  3) Kiểm tra bản sao lưu
+     Xác minh bản sao lưu trước khi sử dụng.
+
+  4) Khôi phục website hiện tại — CẢNH BÁO
+     Xem trước và xác nhận trước khi khôi phục dữ liệu.
+
+  5) Khôi phục thành website mới
+     Tạo website mới từ bản sao lưu đã chọn.
+
+  0) Quay lại
 EOF
     fi
 
@@ -214,7 +238,7 @@ ui_flow_restore_new() {
 
 ui_flow_restore_resume() {
   ui_header
-  ui_section "RESUME LAST RESTORE"
+  ui_section "TIẾP TỤC PHIÊN KHÔI PHỤC"
 
   ui_restore_state_show || {
     echo "[INFO] Không có pending Restore."
