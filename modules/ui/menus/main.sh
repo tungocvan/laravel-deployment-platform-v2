@@ -62,54 +62,173 @@ EOF
   done
 }
 
-# Professional top-level navigation. Each item advertises its main capabilities
-# so operators do not need to enter a submenu just to discover what it does.
+# Platform 2.1: task-oriented navigation. Descriptions are deliberately Vietnamese.
+# Each operation is dispatched to its existing confirmed/safe workflow.
 ui_main() {
   while true; do
     ui_header
     cat <<'EOF'
 
-  OPERATIONS CONSOLE
-  ------------------
+  LARAVEL DEPLOYMENT PLATFORM v2.1
+  --------------------------------
 
-  1) Sites & Repository
-     Create/List/Doctor, Enable/Disable, Maintenance, Archive/Purge,
-     đổi kho, tạo kho mới, đồng bộ 2 kho Git, kiểm tra quyền Git/SSH
+  1) Dashboard & Site Overview
+     Xem danh sách, thông tin và trạng thái các website đang quản lý.
 
-  2) Backup & Restore
-     Create/List/Verify backup, Restore site hiện tại hoặc tạo site mới
+  2) Sites Management
+     Tạo, nhân bản, bật/tắt, bảo trì và quản lý vòng đời website.
 
   3) Deploy & Runtime
-     Git Update, Full Deploy, Backend (Migrate/Optimize/Health),
-     Frontend Build, Health Check, Container Status
+     Cập nhật mã nguồn, triển khai, quản lý .env và phục hồi runtime.
 
-  4) Doctor & Domain Diagnostics
-     Kiểm tra domain, site identity và chẩn đoán site
+  4) Backup & Recovery
+     Tạo, kiểm tra và khôi phục bản sao lưu website.
 
-  5) Infrastructure — SSL & Nginx
-     SSL issue/list/verify/renew, Nginx verify/show/conflict
+  5) Monitoring & Diagnostics
+     Kiểm tra sức khỏe, container, tên miền và lỗi vận hành.
 
-  6) Packages
-     List/Show/Verify package và xem lịch sử package
+  6) Infrastructure — SSL & Nginx
+     Quản lý chứng chỉ HTTPS và cấu hình định tuyến Nginx.
 
-  7) Hướng dẫn sử dụng / Chọn đúng chức năng
-     Quick guide cho .env, deploy, lỗi 500/502, backup, repository, SSL
+  7) Maintenance & Safety
+     Dọn dẹp, lưu trữ hoặc xóa site với bước xác nhận an toàn.
 
-  0) Exit
+  8) Repository & SSH
+     Đổi kho mã nguồn, đồng bộ Git và kiểm tra quyền truy cập SSH.
+
+  9) Packages & Help
+     Quản lý gói chức năng và xem hướng dẫn thao tác nhanh.
+
+  0) Thoát
 
 EOF
     local choice
-    read -r -p "Chọn chức năng: " choice
+    read -r -p "Chọn chức năng: " choice || return 0
     case "$choice" in
-      1) ui_menu_sites ;;
-      2) ui_menu_backup ;;
-      3) ui_menu_deploy ;;
-      4) ui_menu_doctor ;;
-      5) ui_menu_infrastructure ;;
-      6) ui_menu_packages ;;
-      7) ui_quick_guide ;;
+      1) ui_site_operations_group "DASHBOARD — TỔNG QUAN WEBSITE" "$(cat <<'ITEMS'
+8|Danh sách site~Xem các website đã đăng ký trên Platform.
+9|Chi tiết site~Xem cấu hình và thông tin một website.
+6|Runtime / Docker Status~Xem topology, container, health và cổng dịch vụ.
+ITEMS
+)" ;;
+      2) ui_site_operations_group "SITES — QUẢN LÝ WEBSITE" "$(cat <<'ITEMS'
+1|Tạo website~Khởi tạo một site mới theo quy trình có kiểm tra.
+11|Nhân bản website~Tạo site mới từ site có sẵn.
+12|Bật website~Kích hoạt website sau khi xác nhận.
+13|Tắt website~Vô hiệu hóa website sau khi xác nhận.
+14|Bật bảo trì~Đưa website vào chế độ bảo trì.
+15|Tắt bảo trì~Đưa website trở lại hoạt động.
+ITEMS
+)" ;;
+      3)
+        while true; do
+          ui_header
+          ui_section "DEPLOY & RUNTIME — TRIỂN KHAI VÀ VẬN HÀNH"
+          cat <<'EOF'
+  1) Deploy chuẩn
+     Git Update, Full Deploy, Backend, Frontend và Health Check.
+
+  2) Update Site
+     Git fast-forward + runtime reconcile; migration cần duyệt riêng.
+
+  3) Manage .env
+     Xem key ẩn giá trị, sửa hoặc import có preview và xác nhận.
+
+  4) Reconcile / Resume Runtime
+     Phục hồi runtime, không Git mutation, build hoặc migration.
+
+  5) Run Artisan
+     Chạy lệnh Laravel Artisan cho site đã chọn.
+
+  0) Quay lại
+
+EOF
+          read -r -p "Chọn chức năng: " choice || break
+          case "$choice" in
+            1) ui_menu_deploy ;;
+            2) ui_site_operation_dispatch 2 ;;
+            3) ui_site_operation_dispatch 3 ;;
+            4) ui_site_operation_dispatch 25 ;;
+            5) ui_site_operation_dispatch 5 ;;
+            0|q|Q) break ;;
+            *) echo "[ERROR] Lựa chọn không hợp lệ."; ui_pause ;;
+          esac
+        done
+        ;;
+      4) ui_menu_backup ;;
+      5)
+        while true; do
+          ui_header
+          ui_section "MONITORING — GIÁM SÁT VÀ CHẨN ĐOÁN"
+          cat <<'EOF'
+  1) Doctor & Domain Diagnostics
+     Kiểm tra domain, định danh và tình trạng website.
+
+  2) Production Diagnostics
+     Thu thập bằng chứng chẩn đoán chỉ đọc.
+
+  3) Site Doctor
+     Kiểm tra một site cụ thể.
+
+  4) Runtime / Docker Status
+     Xem dịch vụ, container, cổng và trạng thái sức khỏe.
+
+  0) Quay lại
+
+EOF
+          read -r -p "Chọn chức năng: " choice || break
+          case "$choice" in
+            1) ui_menu_doctor ;;
+            2) ui_site_operation_dispatch 4 ;;
+            3) ui_site_operation_dispatch 10 ;;
+            4) ui_site_operation_dispatch 6 ;;
+            0|q|Q) break ;;
+            *) echo "[ERROR] Lựa chọn không hợp lệ."; ui_pause ;;
+          esac
+        done
+        ;;
+      6) ui_menu_infrastructure ;;
+      7) ui_site_operations_group "MAINTENANCE — BẢO TRÌ VÀ AN TOÀN" "$(cat <<'ITEMS'
+7|Production Cleanup~Mặc định chỉ báo cáo; áp dụng cần xác nhận, Docker cleanup ảnh hưởng toàn host.
+16|Archive site~Lưu trữ website theo quy trình an toàn.
+17|Restore archived site~Khôi phục website đã lưu trữ.
+18|Danh sách archive~Xem các website đang lưu trữ.
+19|Purge site~Xóa website theo quy trình có xác nhận.
+20|Purge Force~Xóa site đang hoạt động; thao tác nguy hiểm, cần xác nhận.
+ITEMS
+)" ;;
+      8) ui_site_operations_group "REPOSITORY & SSH — KHO MÃ NGUỒN" "$(cat <<'ITEMS'
+21|Update repository~Đổi kho mã nguồn của website có kiểm tra tương thích.
+22|Bootstrap repository~Tạo kho Git mới từ mã nguồn hiện có.
+23|Sync repositories~Đồng bộ hai kho theo quy trình có kiểm tra an toàn.
+24|Repository access / SSH~Kiểm tra quyền Git và khóa SSH, không hiển thị private key.
+ITEMS
+)" ;;
+      9)
+        while true; do
+          ui_header
+          ui_section "PACKAGES & HELP — GÓI VÀ HƯỚNG DẪN"
+          cat <<'EOF'
+  1) Packages
+     Liệt kê, kiểm tra và xem lịch sử các gói chức năng.
+
+  2) Hướng dẫn sử dụng / Chọn đúng chức năng
+     Hướng dẫn xử lý .env, deploy, lỗi 500/502, backup, Git và SSL.
+
+  0) Quay lại
+
+EOF
+          read -r -p "Chọn chức năng: " choice || break
+          case "$choice" in
+            1) ui_menu_packages ;;
+            2) ui_quick_guide ;;
+            0|q|Q) break ;;
+            *) echo "[ERROR] Lựa chọn không hợp lệ."; ui_pause ;;
+          esac
+        done
+        ;;
       0|q|Q) return 0 ;;
-      *) ;;
+      *) echo "[ERROR] Lựa chọn không hợp lệ."; ui_pause ;;
     esac
   done
 }

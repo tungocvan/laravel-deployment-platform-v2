@@ -179,33 +179,66 @@ ui_menu_sites() {
 EOF
     local c site cmd
     read -r -p "Chọn: " c
-    case "$c" in
-      1) ui_flow_create ;;
-      2) ui_flow_production_update ;;
-      3) ui_flow_production_env ;;
-      4) site="$(ui_select_site "Chọn site")" || continue; ui_run site diagnostics "$site"; ui_pause ;;
-      5) site="$(ui_select_site "Chọn site")" || continue; cmd="$(ui_prompt "Artisan command (vd: about, route:list)")"; [[ -n "$cmd" ]] && ui_run_sudo site artisan "$site" $cmd; ui_pause ;;
-      6) site="$(ui_select_site "Chọn site")" || continue; ui_run site runtime "$site"; ui_pause ;;
-      7) ui_flow_production_cleanup ;;
-      8) ui_run site list; ui_pause ;;
-      9) site="$(ui_select_site "Chọn site cần xem")" || continue; ui_run site show "$site"; ui_pause ;;
-      10) site="$(ui_select_site "Chọn site cần kiểm tra")" || continue; ui_run site doctor "$site"; ui_pause ;;
-      11) ui_flow_duplicate ;;
-      12) site="$(ui_select_site "Chọn site cần ENABLE")" || continue; ui_confirm_execute "ENABLE SITE: $site" && ui_run_sudo site enable "$site" --yes; ui_pause ;;
-      13) site="$(ui_select_site "Chọn site cần DISABLE")" || continue; ui_confirm_execute "DISABLE SITE: $site" && ui_run_sudo site disable "$site" --yes; ui_pause ;;
-      14) site="$(ui_select_site "Chọn site")" || continue; ui_confirm_execute "MAINTENANCE ON: $site" && ui_run_sudo site maintenance on "$site"; ui_pause ;;
-      15) site="$(ui_select_site "Chọn site")" || continue; ui_confirm_execute "MAINTENANCE OFF: $site" && ui_run_sudo site maintenance off "$site"; ui_pause ;;
-      16) ui_flow_archive ;;
-      17) ui_flow_restore_archive ;;
-      18) ui_run site archives; ui_pause ;;
-      19) ui_flow_purge ;;
-      20) ui_flow_purge_force ;;
-      21) ui_flow_update_repository ;;
-      22) ui_flow_bootstrap_repository ;;
-      23) ui_flow_sync_repositories ;;
-      24) ui_flow_repository_access ;;
-      25) ui_flow_production_reconcile ;;
-      0) return 0 ;;
-    esac
+    ui_site_operation_dispatch "$c"  done
+}
+
+# Shared dispatch keeps the existing safety confirmations and runtime flows.
+ui_site_operation_dispatch() {
+  local site cmd
+      case "$1" in
+        1) ui_flow_create ;;
+        2) ui_flow_production_update ;;
+        3) ui_flow_production_env ;;
+        4) site="$(ui_select_site "Chọn site")" || continue; ui_run site diagnostics "$site"; ui_pause ;;
+        5) site="$(ui_select_site "Chọn site")" || continue; cmd="$(ui_prompt "Artisan command (vd: about, route:list)")"; [[ -n "$cmd" ]] && ui_run_sudo site artisan "$site" $cmd; ui_pause ;;
+        6) site="$(ui_select_site "Chọn site")" || continue; ui_run site runtime "$site"; ui_pause ;;
+        7) ui_flow_production_cleanup ;;
+        8) ui_run site list; ui_pause ;;
+        9) site="$(ui_select_site "Chọn site cần xem")" || continue; ui_run site show "$site"; ui_pause ;;
+        10) site="$(ui_select_site "Chọn site cần kiểm tra")" || continue; ui_run site doctor "$site"; ui_pause ;;
+        11) ui_flow_duplicate ;;
+        12) site="$(ui_select_site "Chọn site cần ENABLE")" || continue; ui_confirm_execute "ENABLE SITE: $site" && ui_run_sudo site enable "$site" --yes; ui_pause ;;
+        13) site="$(ui_select_site "Chọn site cần DISABLE")" || continue; ui_confirm_execute "DISABLE SITE: $site" && ui_run_sudo site disable "$site" --yes; ui_pause ;;
+        14) site="$(ui_select_site "Chọn site")" || continue; ui_confirm_execute "MAINTENANCE ON: $site" && ui_run_sudo site maintenance on "$site"; ui_pause ;;
+        15) site="$(ui_select_site "Chọn site")" || continue; ui_confirm_execute "MAINTENANCE OFF: $site" && ui_run_sudo site maintenance off "$site"; ui_pause ;;
+        16) ui_flow_archive ;;
+        17) ui_flow_restore_archive ;;
+        18) ui_run site archives; ui_pause ;;
+        19) ui_flow_purge ;;
+        20) ui_flow_purge_force ;;
+        21) ui_flow_update_repository ;;
+        22) ui_flow_bootstrap_repository ;;
+        23) ui_flow_sync_repositories ;;
+        24) ui_flow_repository_access ;;
+        25) ui_flow_production_reconcile ;;
+        0) return 0 ;;
+      esac
+  
+}
+
+ui_site_operations_group() {
+  local title="$1" entries="$2" choice allowed id description
+  while true; do
+    ui_header
+    ui_section "$title"
+    printf "\n"
+    while IFS="|" read -r id description; do
+      [[ -n "$id" ]] || continue
+      printf "  %2s) %s\n" "$id" "${description%%~*}"
+      printf "      %s\n\n" "${description#*~}"
+    done <<<"$entries"
+    printf "   0) Quay lại\n\n"
+    read -r -p "Chọn chức năng: " choice || return 0
+    [[ "$choice" == 0 || "$choice" == q || "$choice" == Q ]] && return 0
+    allowed=0
+    while IFS="|" read -r id description; do
+      [[ "$choice" == "$id" ]] && allowed=1
+    done <<<"$entries"
+    if [[ "$allowed" -eq 1 ]]; then
+      ui_site_operation_dispatch "$choice"
+    else
+      echo "[ERROR] Lựa chọn không hợp lệ."
+      ui_pause
+    fi
   done
 }
