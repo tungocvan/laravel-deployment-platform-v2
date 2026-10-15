@@ -86,7 +86,7 @@ grep -q 'source "$PLATFORM_HOME/modules/ui/menus/main.sh"' "$ROOT/modules/ui/com
 # requiring operators to know that it is implemented by deploy optimize.
 grep -q 'Backend / Laravel Runtime (Migrate, Optimize/Reload .env, Health)' "$ROOT/modules/ui/menus/deploy.sh"
 grep -q 'Optimize / Reload .env' "$ROOT/modules/ui/menus/deploy.sh"
-grep -q 'Health Check — Services + Laravel Boot + Application HTTP' "$ROOT/modules/ui/menus/deploy.sh"
+grep -q 'Health Check — Services + Laravel Boot + Public Storage + Application HTTP' "$ROOT/modules/ui/menus/deploy.sh"
 grep -q 'Full Deploy — build images + Docker up + migrate + optimize' "$ROOT/modules/ui/menus/deploy.sh"
 
 grep -q 'REPOSITORY MANAGEMENT' "$ROOT/modules/ui/menus/sites.sh"
