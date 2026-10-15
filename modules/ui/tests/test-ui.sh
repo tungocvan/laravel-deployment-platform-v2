@@ -7,6 +7,7 @@ ROOT="${PLATFORM_HOME:-$SCRIPT_ROOT}"
 for f in \
   "$ROOT/modules/ui/lib/ui.sh" \
   "$ROOT/modules/ui/menus/main.sh" \
+  "$ROOT/modules/ui/menus/site-operations-v2.sh" \
   "$ROOT/modules/ui/menus/infrastructure.sh" \
   "$ROOT/modules/ui/menus/backup.sh" \
   "$ROOT/modules/ui/menus/sites.sh" \
@@ -94,4 +95,22 @@ grep -q 'INFRASTRUCTURE — SSL CERTIFICATES / NGINX ROUTING' "$ROOT/modules/ui/
 grep -q 'DOCTOR & DOMAIN DIAGNOSTICS' "$ROOT/modules/ui/menus/doctor.sh"
 grep -q 'PACKAGES — INVENTORY / VERIFY / HISTORY' "$ROOT/modules/ui/menus/packages.sh"
 
-echo "[OK] Interactive UI dev.6 + descriptive console + repository access/SSH alias guidance"
+# Platform 2.1 navigation: all nine categories must have Vietnamese help
+# and site actions must reuse the existing guarded operation dispatcher.
+for title in \
+  'Dashboard & Site Overview' 'Sites Management' 'Deploy & Runtime' \
+  'Backup & Recovery' 'Monitoring & Diagnostics' \
+  'Infrastructure — SSL & Nginx' 'Maintenance & Safety' \
+  'Repository & SSH' 'Packages & Help'
+do
+  grep -Fq "$title" "$ROOT/modules/ui/menus/main.sh"
+done
+grep -Fq 'Xem danh sách, thông tin và trạng thái các website' "$ROOT/modules/ui/menus/main.sh"
+grep -Fq 'Dọn dẹp, lưu trữ hoặc xóa site với bước xác nhận an toàn' "$ROOT/modules/ui/menus/main.sh"
+grep -Fq 'Quản lý gói chức năng và xem hướng dẫn thao tác nhanh' "$ROOT/modules/ui/menus/main.sh"
+grep -q '^ui_site_operation_dispatch()' "$ROOT/modules/ui/menus/site-operations-v2.sh"
+grep -q '^ui_site_operations_group()' "$ROOT/modules/ui/menus/site-operations-v2.sh"
+grep -Fq 'ui_site_operation_dispatch "$c"' "$ROOT/modules/ui/menus/site-operations-v2.sh"
+grep -Fq 'ui_site_operation_dispatch "$choice"' "$ROOT/modules/ui/menus/site-operations-v2.sh" || grep -Fq 'ui_site_operation_dispatch 25' "$ROOT/modules/ui/menus/main.sh"
+
+echo "[OK] Platform 2.1 nine-group Vietnamese navigation + existing safety flows"
