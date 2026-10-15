@@ -6,11 +6,16 @@ ui_menu_doctor() {
     ui_section "DOCTOR & DOMAIN DIAGNOSTICS — DNS / IDENTITY / SITE HEALTH"
     cat <<'EOF'
 
-  1) Check Domain — kiểm tra DNS/domain readiness
-  2) Check Domain + Site Identity — kiểm tra domain với name/database dự kiến trước Create Site
-  3) Site Doctor — kiểm tra source, Docker runtime, workers và backup của site hiện có
+  1) Kiểm tra tên miền
+     Kiểm tra DNS và khả năng sẵn sàng của domain.
 
-  0) Back
+  2) Kiểm tra tên miền và định danh website
+     Đối chiếu tên site, database dự kiến trước khi tạo mới.
+
+  3) Chẩn đoán website
+     Kiểm tra source, Docker runtime, worker và bản sao lưu.
+
+  0) Quay lại
 
 EOF
     local c domain name database site
