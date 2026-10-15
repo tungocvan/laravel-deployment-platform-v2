@@ -25,7 +25,7 @@ done
 grep -q '^ui_ssl_wizard()' "$ROOT/modules/ui/lib/ui.sh"
 grep -q '^ui_ssl_wizard_issue_loop()' "$ROOT/modules/ui/lib/ui.sh"
 grep -q '^ui_inventory_site_by_domain_json()' "$ROOT/modules/ui/lib/ui.sh"
-grep -q 'SSL Wizard' "$ROOT/modules/ui/menus/infrastructure.sh"
+grep -q 'Hướng dẫn cấp chứng chỉ SSL' "$ROOT/modules/ui/menus/infrastructure.sh"
 grep -q 'ssl issue "$domain"' "$ROOT/modules/ui/lib/ui.sh"
 grep -q 'ssl verify "$domain"' "$ROOT/modules/ui/lib/ui.sh"
 grep -q 'git@github.com:tungocvan/laravel-shop.git' "$ROOT/modules/ui/menus/sites.sh"
@@ -113,4 +113,21 @@ grep -q '^ui_site_operations_group()' "$ROOT/modules/ui/menus/site-operations-v2
 grep -Fq 'ui_site_operation_dispatch "$c"' "$ROOT/modules/ui/menus/site-operations-v2.sh"
 grep -Fq 'ui_site_operation_dispatch "$choice"' "$ROOT/modules/ui/menus/site-operations-v2.sh" || grep -Fq 'ui_site_operation_dispatch 25' "$ROOT/modules/ui/menus/main.sh"
 
-echo "[OK] Platform 2.1 nine-group Vietnamese navigation + existing safety flows"
+# Checkpoint 60: each legacy submenu now includes a Vietnamese explanation.
+for pair in \
+  'modules/ui/menus/backup.sh|Khôi phục website hiện tại — CẢNH BÁO' \
+  'modules/ui/menus/doctor.sh|Kiểm tra tên miền và định danh website' \
+  'modules/ui/menus/deploy.sh|Chạy migration cơ sở dữ liệu — CẢNH BÁO' \
+  'modules/ui/menus/infrastructure.sh|Kiểm tra xung đột Nginx' \
+  'modules/ui/menus/packages.sh|Kiểm tra tính toàn vẹn gói' \
+  'modules/ui/menus/site-operations-v2.sh|Dọn dẹp Docker trên toàn VPS — CẢNH BÁO'
+do
+  file="${pair%%|*}"
+  phrase="${pair#*|}"
+  grep -Fq "$phrase" "$ROOT/$file"
+done
+grep -Fq 'ui_site_operation_dispatch "$c"' "$ROOT/modules/ui/menus/site-operations-v2.sh"
+! grep -Fq '|| continue; cmd=' "$ROOT/modules/ui/menus/site-operations-v2.sh"
+! grep -Fq '  LARAVEL DEPLOYMENT PLATFORM v2.1' "$ROOT/modules/ui/menus/main.sh"
+grep -Fq 'Repository & SSH → Update repository' "$ROOT/modules/ui/menus/main.sh"
+echo "[OK] Platform 2.1 Vietnamese submenu descriptions and safe navigation"
