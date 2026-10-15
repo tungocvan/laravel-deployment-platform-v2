@@ -110,7 +110,9 @@ site_ops_env_compose_keys() {
   files="$(site_ops_runtime_config_files "$site" "$path" 2>/dev/null || true)"
   if [[ -z "$files" ]]; then
     for file in compose.yaml compose.yml docker-compose.yaml docker-compose.yml; do
-      [[ -f "$path/$file" ]] && printf '%s\n' "$path/$file"
+      if [[ -f "$path/$file" ]]; then
+        printf '%s\n' "$path/$file"
+      fi
     done
   else
     printf '%s\n' "$files"
