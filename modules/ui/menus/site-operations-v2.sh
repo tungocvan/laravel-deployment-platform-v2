@@ -179,28 +179,29 @@ ui_menu_sites() {
 EOF
     local c site cmd
     read -r -p "Chọn: " c
-    ui_site_operation_dispatch "$c"  done
+    ui_site_operation_dispatch "$c"
+  done
 }
 
 # Shared dispatch keeps the existing safety confirmations and runtime flows.
 ui_site_operation_dispatch() {
   local site cmd
-      case "$1" in
+  case "$1" in
         1) ui_flow_create ;;
         2) ui_flow_production_update ;;
         3) ui_flow_production_env ;;
-        4) site="$(ui_select_site "Chọn site")" || continue; ui_run site diagnostics "$site"; ui_pause ;;
+        4) site="$(ui_select_site "Chọn site")" || return 0; ui_run site diagnostics "$site"; ui_pause ;;
         5) site="$(ui_select_site "Chọn site")" || continue; cmd="$(ui_prompt "Artisan command (vd: about, route:list)")"; [[ -n "$cmd" ]] && ui_run_sudo site artisan "$site" $cmd; ui_pause ;;
-        6) site="$(ui_select_site "Chọn site")" || continue; ui_run site runtime "$site"; ui_pause ;;
+        6) site="$(ui_select_site "Chọn site")" || return 0; ui_run site runtime "$site"; ui_pause ;;
         7) ui_flow_production_cleanup ;;
         8) ui_run site list; ui_pause ;;
-        9) site="$(ui_select_site "Chọn site cần xem")" || continue; ui_run site show "$site"; ui_pause ;;
-        10) site="$(ui_select_site "Chọn site cần kiểm tra")" || continue; ui_run site doctor "$site"; ui_pause ;;
+        9) site="$(ui_select_site "Chọn site cần xem")" || return 0; ui_run site show "$site"; ui_pause ;;
+        10) site="$(ui_select_site "Chọn site cần kiểm tra")" || return 0; ui_run site doctor "$site"; ui_pause ;;
         11) ui_flow_duplicate ;;
-        12) site="$(ui_select_site "Chọn site cần ENABLE")" || continue; ui_confirm_execute "ENABLE SITE: $site" && ui_run_sudo site enable "$site" --yes; ui_pause ;;
-        13) site="$(ui_select_site "Chọn site cần DISABLE")" || continue; ui_confirm_execute "DISABLE SITE: $site" && ui_run_sudo site disable "$site" --yes; ui_pause ;;
-        14) site="$(ui_select_site "Chọn site")" || continue; ui_confirm_execute "MAINTENANCE ON: $site" && ui_run_sudo site maintenance on "$site"; ui_pause ;;
-        15) site="$(ui_select_site "Chọn site")" || continue; ui_confirm_execute "MAINTENANCE OFF: $site" && ui_run_sudo site maintenance off "$site"; ui_pause ;;
+        12) site="$(ui_select_site "Chọn site cần ENABLE")" || return 0; ui_confirm_execute "ENABLE SITE: $site" && ui_run_sudo site enable "$site" --yes; ui_pause ;;
+        13) site="$(ui_select_site "Chọn site cần DISABLE")" || return 0; ui_confirm_execute "DISABLE SITE: $site" && ui_run_sudo site disable "$site" --yes; ui_pause ;;
+        14) site="$(ui_select_site "Chọn site")" || return 0; ui_confirm_execute "MAINTENANCE ON: $site" && ui_run_sudo site maintenance on "$site"; ui_pause ;;
+        15) site="$(ui_select_site "Chọn site")" || return 0; ui_confirm_execute "MAINTENANCE OFF: $site" && ui_run_sudo site maintenance off "$site"; ui_pause ;;
         16) ui_flow_archive ;;
         17) ui_flow_restore_archive ;;
         18) ui_run site archives; ui_pause ;;
