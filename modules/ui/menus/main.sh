@@ -9,35 +9,35 @@ ui_quick_guide() {
   TÌNH HUỐNG THƯỜNG GẶP
   ---------------------
   • Tạo / xóa / bật tắt / bảo trì site
-      → Sites & Repository
+      → Sites Management / Maintenance & Safety
 
   • Code trên GitHub có thay đổi
-      → Deploy → Update Code from GitHub
+      → Deploy & Runtime → Update Code from GitHub
       → sau đó Full Deploy nếu thay đổi cần build/migrate/runtime refresh
 
   • Chỉ sửa hoặc thêm biến .env thông thường
-      → Deploy → Backend → Optimize / Reload .env
+      → Deploy & Runtime → Backend → Optimize / Reload .env
       → sau đó Health Check
       → KHÔNG cần Full Deploy nếu không đổi image/port/service secret
 
   • Website lỗi 500 / 502 hoặc nghi runtime có vấn đề
-      → Deploy → Health Check
+      → Deploy & Runtime → Health Check
       → Doctor & Domain Diagnostics nếu cần kiểm tra sâu hơn
 
   • Backup trước khi thao tác nguy hiểm / phục hồi dữ liệu
-      → Backup & Restore
+      → Backup & Recovery
 
   • SSL / Nginx / domain proxy có vấn đề
       → Infrastructure — SSL & Nginx
 
   • Đổi repository nhưng giữ nguyên source
-      → Sites & Repository → Update repository
+      → Repository & SSH → Update repository
 
   • Tạo repository mới hoặc đồng bộ hai repository
-      → Sites & Repository → Bootstrap / Sync repository
+      → Repository & SSH → Bootstrap / Sync repository
 
   • Kiểm tra quyền GitHub / tạo SSH key riêng cho repository
-      → Sites & Repository → Kiểm tra quyền repository / SSH key
+      → Repository & SSH → Kiểm tra quyền repository / SSH key
       → Platform test READ + WRITE + DELETE bằng ref tạm, không chạm main
       → Nếu thiếu quyền, có thể tạo key theo owner/repo và in PUBLIC KEY
 
@@ -50,7 +50,7 @@ ui_quick_guide() {
   5. Backup trước Archive/Purge/Restore hoặc thay đổi dữ liệu quan trọng.
   6. Không bao giờ chia sẻ private SSH key; menu chỉ hiển thị public key .pub.
 
-  0) Back
+  0) Quay lại
 
 EOF
     local c
@@ -62,6 +62,44 @@ EOF
   done
 }
 
+# Read-only operator handoff. Never executes git, deploy or production changes.
+ui_upgrade_prompt_guide() {
+  ui_header
+  ui_section "PROMPT NÂNG CẤP PLATFORM 2.1 — SAO CHÉP SANG CHAT MỚI"
+  cat <<'EOF'
+
+Hãy tiếp tục phát triển Laravel Deployment Platform v2.1.
+
+Repository: tungocvan/laravel-deployment-platform-v2
+Production checkout: /opt/laravel-deployment-platform-v2
+CLI: platform-v2
+Tài liệu ưu tiên: INFORMATION.md, README.md, docs/AI-HANDOFF.md
+và docs/VPS-DEPLOYMENT-GUIDE.md.
+
+Mục tiêu nâng cấp của tôi:
+[ĐIỀN MÔ TẢ CHỨC NĂNG HOẶC LỖI CẦN SỬA]
+
+Quy trình bắt buộc:
+1. Đọc INFORMATION.md và audit read-only branch main mới nhất.
+2. Đối chiếu implementation thực tế, tests, PR đang mở và lịch sử liên quan.
+   Không giả định PR đã merge nếu chưa kiểm tra trên GitHub.
+3. Phân tích nguyên nhân, đề xuất phạm vi và kiểm thử hồi quy.
+4. Tạo feature/fix branch riêng; trực tiếp viết code trên GitHub và tạo Draft PR.
+5. Không sửa production checkout, không tự merge main, không force-push.
+6. Không động vào .env, APP_KEY, secrets, Docker runtime, inventory,
+   database, volumes, SSH private keys hoặc site production.
+7. Giữ nguyên safety gate, dry-run, confirm, backup và health check.
+8. Cung cấp checkpoint git pull/test bằng worktree riêng.
+9. Chỉ đề xuất merge khi Bash Syntax, targeted tests và UI PASS.
+10. Sau merge, cập nhật INFORMATION.md và kiểm tra lại main.
+
+Hãy bắt đầu bằng read-only audit, nêu chính xác trạng thái hiện tại
+và thực hiện đến checkpoint pull/test, không tự merge.
+
+EOF
+  ui_pause
+}
+
 # Platform 2.1: task-oriented navigation. Descriptions are deliberately Vietnamese.
 # Each operation is dispatched to its existing confirmed/safe workflow.
 ui_main() {
@@ -69,8 +107,6 @@ ui_main() {
     ui_header
     cat <<'EOF'
 
-  LARAVEL DEPLOYMENT PLATFORM v2.1
-  --------------------------------
 
   1) Dashboard & Site Overview
      Xem danh sách, thông tin và trạng thái các website đang quản lý.
@@ -96,8 +132,8 @@ ui_main() {
   8) Repository & SSH
      Đổi kho mã nguồn, đồng bộ Git và kiểm tra quyền truy cập SSH.
 
-  9) Packages & Help
-     Quản lý gói chức năng và xem hướng dẫn thao tác nhanh.
+  9) Packages & Help & Upgrade Menu
+     Quản lý gói, xem hướng dẫn và lấy prompt nâng cấp Platform 2.1.
 
   0) Thoát
 
@@ -207,13 +243,16 @@ ITEMS
       9)
         while true; do
           ui_header
-          ui_section "PACKAGES & HELP — GÓI VÀ HƯỚNG DẪN"
+          ui_section "PACKAGES & HELP & UPGRADE — GÓI, HƯỚNG DẪN VÀ NÂNG CẤP"
           cat <<'EOF'
   1) Packages
      Liệt kê, kiểm tra và xem lịch sử các gói chức năng.
 
   2) Hướng dẫn sử dụng / Chọn đúng chức năng
      Hướng dẫn xử lý .env, deploy, lỗi 500/502, backup, Git và SSL.
+
+  3) Prompt nâng cấp Platform 2.1 (chỉ đọc)
+     Hiển thị mẫu yêu cầu AI audit source và tạo PR an toàn.
 
   0) Quay lại
 
@@ -222,6 +261,7 @@ EOF
           case "$choice" in
             1) ui_menu_packages ;;
             2) ui_quick_guide ;;
+            3) ui_upgrade_prompt_guide ;;
             0|q|Q) break ;;
             *) echo "[ERROR] Lựa chọn không hợp lệ."; ui_pause ;;
           esac

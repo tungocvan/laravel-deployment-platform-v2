@@ -25,7 +25,7 @@ done
 grep -q '^ui_ssl_wizard()' "$ROOT/modules/ui/lib/ui.sh"
 grep -q '^ui_ssl_wizard_issue_loop()' "$ROOT/modules/ui/lib/ui.sh"
 grep -q '^ui_inventory_site_by_domain_json()' "$ROOT/modules/ui/lib/ui.sh"
-grep -q 'SSL Wizard' "$ROOT/modules/ui/menus/infrastructure.sh"
+grep -q 'Hướng dẫn cấp chứng chỉ SSL' "$ROOT/modules/ui/menus/infrastructure.sh"
 grep -q 'ssl issue "$domain"' "$ROOT/modules/ui/lib/ui.sh"
 grep -q 'ssl verify "$domain"' "$ROOT/modules/ui/lib/ui.sh"
 grep -q 'git@github.com:tungocvan/laravel-shop.git' "$ROOT/modules/ui/menus/sites.sh"
@@ -78,7 +78,7 @@ grep -q 'Không bao giờ chia sẻ private SSH key' "$ROOT/modules/ui/menus/mai
 # Professional navigation contract: top-level items explain their contents and
 # an operator guide must be reachable directly from the first screen.
 grep -q '^ui_quick_guide()' "$ROOT/modules/ui/menus/main.sh"
-grep -q 'Sites & Repository' "$ROOT/modules/ui/menus/main.sh"
+grep -q 'Sites Management' "$ROOT/modules/ui/menus/main.sh"
 grep -q 'Deploy & Runtime' "$ROOT/modules/ui/menus/main.sh"
 grep -q 'Hướng dẫn sử dụng / Chọn đúng chức năng' "$ROOT/modules/ui/menus/main.sh"
 grep -q 'source "$PLATFORM_HOME/modules/ui/menus/main.sh"' "$ROOT/modules/ui/commands/menu.sh"
@@ -101,16 +101,39 @@ for title in \
   'Dashboard & Site Overview' 'Sites Management' 'Deploy & Runtime' \
   'Backup & Recovery' 'Monitoring & Diagnostics' \
   'Infrastructure — SSL & Nginx' 'Maintenance & Safety' \
-  'Repository & SSH' 'Packages & Help'
+  'Repository & SSH' 'Packages & Help & Upgrade Menu'
 do
   grep -Fq "$title" "$ROOT/modules/ui/menus/main.sh"
 done
 grep -Fq 'Xem danh sách, thông tin và trạng thái các website' "$ROOT/modules/ui/menus/main.sh"
 grep -Fq 'Dọn dẹp, lưu trữ hoặc xóa site với bước xác nhận an toàn' "$ROOT/modules/ui/menus/main.sh"
-grep -Fq 'Quản lý gói chức năng và xem hướng dẫn thao tác nhanh' "$ROOT/modules/ui/menus/main.sh"
+grep -Fq 'Quản lý gói, xem hướng dẫn và lấy prompt nâng cấp Platform 2.1' "$ROOT/modules/ui/menus/main.sh"
 grep -q '^ui_site_operation_dispatch()' "$ROOT/modules/ui/menus/site-operations-v2.sh"
 grep -q '^ui_site_operations_group()' "$ROOT/modules/ui/menus/site-operations-v2.sh"
 grep -Fq 'ui_site_operation_dispatch "$c"' "$ROOT/modules/ui/menus/site-operations-v2.sh"
 grep -Fq 'ui_site_operation_dispatch "$choice"' "$ROOT/modules/ui/menus/site-operations-v2.sh" || grep -Fq 'ui_site_operation_dispatch 25' "$ROOT/modules/ui/menus/main.sh"
 
-echo "[OK] Platform 2.1 nine-group Vietnamese navigation + existing safety flows"
+# Checkpoint 60: each legacy submenu now includes a Vietnamese explanation.
+for pair in \
+  'modules/ui/menus/backup.sh|Khôi phục website hiện tại — CẢNH BÁO' \
+  'modules/ui/menus/doctor.sh|Kiểm tra tên miền và định danh website' \
+  'modules/ui/menus/deploy.sh|Chạy migration cơ sở dữ liệu — CẢNH BÁO' \
+  'modules/ui/menus/infrastructure.sh|Kiểm tra xung đột Nginx' \
+  'modules/ui/menus/packages.sh|Kiểm tra tính toàn vẹn gói' \
+  'modules/ui/menus/site-operations-v2.sh|Dọn dẹp Docker trên toàn VPS — CẢNH BÁO'
+do
+  file="${pair%%|*}"
+  phrase="${pair#*|}"
+  grep -Fq "$phrase" "$ROOT/$file"
+done
+grep -Fq 'ui_site_operation_dispatch "$c"' "$ROOT/modules/ui/menus/site-operations-v2.sh"
+! grep -Fq '|| continue; cmd=' "$ROOT/modules/ui/menus/site-operations-v2.sh"
+! grep -Fq '  LARAVEL DEPLOYMENT PLATFORM v2.1' "$ROOT/modules/ui/menus/main.sh"
+grep -Fq 'Repository & SSH → Update repository' "$ROOT/modules/ui/menus/main.sh"
+# Read-only upgrade prompt must be reachable from menu 9 and must not execute commands.
+grep -q '^ui_upgrade_prompt_guide()' "$ROOT/modules/ui/menus/main.sh"
+grep -Fq '3) Prompt nâng cấp Platform 2.1 (chỉ đọc)' "$ROOT/modules/ui/menus/main.sh"
+grep -Fq '3) ui_upgrade_prompt_guide ;;' "$ROOT/modules/ui/menus/main.sh"
+grep -Fq 'Đọc INFORMATION.md và audit read-only branch main mới nhất' "$ROOT/modules/ui/menus/main.sh"
+grep -Fq 'không tự merge' "$ROOT/modules/ui/menus/main.sh"
+echo "[OK] Platform 2.1 Vietnamese submenu descriptions and upgrade prompt"

@@ -60,12 +60,19 @@ ui_deploy_frontend_menu() {
 
     cat <<'EOF'
 
-  1) Production Build — build frontend assets theo Docker/project strategy
-  2) Install Dependencies — cài package dependencies cho frontend
-  3) Show package scripts — xem các npm/yarn/pnpm scripts khả dụng
-  4) Detect again — quét lại frontend strategy và trạng thái build
+  1) Build frontend cho Production
+     Biên dịch tài nguyên theo chiến lược Docker hoặc dự án.
 
-  0) Back
+  2) Cài đặt thư viện frontend
+     Cài dependencies theo package manager của dự án.
+
+  3) Xem các lệnh build khả dụng
+     Liệt kê scripts npm, yarn hoặc pnpm.
+
+  4) Kiểm tra lại frontend
+     Phát hiện lại chiến lược và trạng thái build.
+
+  0) Quay lại
 EOF
     echo
     local c
@@ -98,12 +105,16 @@ ui_deploy_backend_menu() {
     ui_section "BACKEND / LARAVEL RUNTIME — $site"
     cat <<'EOF'
 
-  1) Migrate Database — chạy php artisan migrate --force
-  2) Optimize / Reload .env — refresh Laravel cache/config và restart runtime
-     Dùng mục này khi chỉ thêm/sửa biến .env thông thường; nhanh hơn Full Deploy.
-  3) Health Check — kiểm tra services, Laravel boot và HTTP application 2xx/3xx
+  1) Chạy migration cơ sở dữ liệu — CẢNH BÁO
+     Chạy php artisan migrate --force sau khi xác nhận.
 
-  0) Back
+  2) Optimize / Reload .env
+     Làm mới cache/config Laravel và restart runtime khi cần.
+
+  3) Kiểm tra sức khỏe Laravel
+     Xác minh services, Laravel boot và HTTP application 2xx/3xx.
+
+  0) Quay lại
 EOF
     echo
     local c
@@ -159,6 +170,7 @@ ui_deploy_wizard() {
     cat <<'EOF'
 
   1) Update Code from GitHub — fetch + fast-forward source, không tự deploy
+     Chỉ cập nhật mã nguồn Git, không tự build hoặc migrate.
 
   2) Full Deploy — build images + Docker up + migrate + optimize + runtime/HTTP health
      Dùng khi source/build/container thay đổi; đây là quy trình đầy đủ và lâu hơn.
@@ -173,11 +185,12 @@ ui_deploy_wizard() {
      Nên chạy đầu tiên khi site lỗi 500/502 hoặc sau thay đổi runtime.
 
   6) Container Status — xem trạng thái Docker services của site
+     Chỉ đọc trạng thái các container đang chạy.
 
   7) Repair Public Storage — sửa quyền storage/app/public và verify /storage/* qua Nginx
      Dùng khi upload logo/favicon/file thành công nhưng URL /storage/... trả 403.
 
-  0) Back
+  0) Quay lại
 EOF
     echo
 

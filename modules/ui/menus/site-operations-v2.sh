@@ -49,10 +49,16 @@ ui_flow_production_env() {
     echo "UPDATE .env — $site"
     echo "========================================================="
     cat <<'EOF'
-  1) Xem danh sách key hiện tại (values redacted)
-  2) Sửa / thêm / xóa biến — staging editor + preview + confirm
-  3) Import từ file .env khác — preview + confirm
-  0) Back
+  1) Xem danh sách biến môi trường
+     Chỉ hiển thị tên biến, không tiết lộ giá trị bí mật.
+
+  2) Sửa, thêm hoặc xóa biến .env
+     Chỉnh sửa tạm, xem trước thay đổi rồi xác nhận áp dụng.
+
+  3) Nhập biến từ file .env khác
+     Kiểm tra bản xem trước trước khi nhập cấu hình.
+
+  0) Quay lại
 EOF
     read -r -p "Chọn: " c
     case "$c" in
@@ -100,10 +106,16 @@ ui_flow_production_cleanup() {
   ui_run site cleanup "$site" || { ui_pause; return; }
   echo
   cat <<'EOF'
-  1) Site cleanup — rotate Laravel log theo production-cleanup.sh + clear app cache
-  2) Docker cleanup — HOST-WIDE dangling images + build cache, không xóa volumes
-  3) All — site cleanup + HOST-WIDE Docker cleanup
-  0) Cancel
+  1) Dọn dẹp riêng website
+     Xoay vòng log Laravel và xóa cache theo cấu hình của site.
+
+  2) Dọn dẹp Docker trên toàn VPS — CẢNH BÁO
+     Chỉ dọn image treo và build cache; không xóa volume có tên.
+
+  3) Dọn dẹp cả website và Docker — CẢNH BÁO
+     Bao gồm tác động trên toàn VPS, cần xác nhận riêng.
+
+  0) Hủy
 EOF
   read -r -p "Chọn chế độ cleanup: " choice
 
@@ -191,7 +203,7 @@ ui_site_operation_dispatch() {
         2) ui_flow_production_update ;;
         3) ui_flow_production_env ;;
         4) site="$(ui_select_site "Chọn site")" || return 0; ui_run site diagnostics "$site"; ui_pause ;;
-        5) site="$(ui_select_site "Chọn site")" || continue; cmd="$(ui_prompt "Artisan command (vd: about, route:list)")"; [[ -n "$cmd" ]] && ui_run_sudo site artisan "$site" $cmd; ui_pause ;;
+        5) site="$(ui_select_site "Chọn site")" || return 0; cmd="$(ui_prompt "Artisan command (vd: about, route:list)")"; [[ -n "$cmd" ]] && ui_run_sudo site artisan "$site" $cmd; ui_pause ;;
         6) site="$(ui_select_site "Chọn site")" || return 0; ui_run site runtime "$site"; ui_pause ;;
         7) ui_flow_production_cleanup ;;
         8) ui_run site list; ui_pause ;;

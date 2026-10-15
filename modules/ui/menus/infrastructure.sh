@@ -8,19 +8,33 @@ ui_menu_infrastructure() {
 
   SSL CERTIFICATES
   ----------------
-  1) SSL Wizard — kiểm tra DNS/preflight rồi cấp chứng chỉ an toàn
-  2) SSL List — liệt kê certificate đang quản lý
-  3) SSL Verify — xác minh certificate của một domain
-  4) SSL Show — xem chi tiết certificate/domain
-  5) SSL Renew — gia hạn certificate
+  1) Hướng dẫn cấp chứng chỉ SSL
+     Kiểm tra DNS và điều kiện trước khi cấp chứng chỉ.
+
+  2) Danh sách chứng chỉ SSL
+     Liệt kê các chứng chỉ đang được quản lý.
+
+  3) Xác minh chứng chỉ SSL
+     Kiểm tra chứng chỉ của tên miền được chọn.
+
+  4) Xem chi tiết chứng chỉ SSL
+     Hiển thị thông tin chứng chỉ và tên miền.
+
+  5) Gia hạn chứng chỉ SSL
+     Yêu cầu xác nhận trước khi gia hạn.
 
   NGINX
   -----
-  6) Nginx Verify — kiểm tra cấu hình Nginx tổng thể
-  7) Nginx Show Domain — xem routing/config của một domain
-  8) Nginx Conflicts — kiểm tra xung đột domain/server block
+  6) Kiểm tra cấu hình Nginx
+     Xác minh cấu hình máy chủ web.
 
-  0) Back
+  7) Xem cấu hình tên miền
+     Hiển thị routing và cấu hình Nginx của domain.
+
+  8) Kiểm tra xung đột Nginx
+     Phát hiện xung đột domain và server block.
+
+  0) Quay lại
 
 EOF
     local c domain

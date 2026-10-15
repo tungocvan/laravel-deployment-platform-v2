@@ -6,12 +6,19 @@ ui_menu_packages() {
     ui_section "PACKAGES — INVENTORY / VERIFY / HISTORY"
     cat <<'EOF'
 
-  1) List Packages — liệt kê package/module package được Platform quản lý
-  2) Show Package — xem metadata và chi tiết một package
-  3) Verify Package — kiểm tra package contract/integrity
-  4) Package History — xem lịch sử thay đổi của package
+  1) Danh sách gói chức năng
+     Liệt kê các package và module được Platform quản lý.
 
-  0) Back
+  2) Chi tiết gói chức năng
+     Xem thông tin và cấu hình của package được chọn.
+
+  3) Kiểm tra tính toàn vẹn gói
+     Xác minh contract và tính nhất quán của package.
+
+  4) Lịch sử gói chức năng
+     Xem các thay đổi của package theo lịch sử lưu trữ.
+
+  0) Quay lại
 
 EOF
     local c pkg
