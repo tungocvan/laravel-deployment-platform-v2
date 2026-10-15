@@ -78,7 +78,7 @@ grep -q 'Không bao giờ chia sẻ private SSH key' "$ROOT/modules/ui/menus/mai
 # Professional navigation contract: top-level items explain their contents and
 # an operator guide must be reachable directly from the first screen.
 grep -q '^ui_quick_guide()' "$ROOT/modules/ui/menus/main.sh"
-grep -q 'Sites & Repository' "$ROOT/modules/ui/menus/main.sh"
+grep -q 'Sites Management' "$ROOT/modules/ui/menus/main.sh"
 grep -q 'Deploy & Runtime' "$ROOT/modules/ui/menus/main.sh"
 grep -q 'Hướng dẫn sử dụng / Chọn đúng chức năng' "$ROOT/modules/ui/menus/main.sh"
 grep -q 'source "$PLATFORM_HOME/modules/ui/menus/main.sh"' "$ROOT/modules/ui/commands/menu.sh"
