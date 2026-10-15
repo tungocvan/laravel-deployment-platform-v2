@@ -101,13 +101,13 @@ for title in \
   'Dashboard & Site Overview' 'Sites Management' 'Deploy & Runtime' \
   'Backup & Recovery' 'Monitoring & Diagnostics' \
   'Infrastructure — SSL & Nginx' 'Maintenance & Safety' \
-  'Repository & SSH' 'Packages & Help'
+  'Repository & SSH' 'Packages & Help & Upgrade Menu'
 do
   grep -Fq "$title" "$ROOT/modules/ui/menus/main.sh"
 done
 grep -Fq 'Xem danh sách, thông tin và trạng thái các website' "$ROOT/modules/ui/menus/main.sh"
 grep -Fq 'Dọn dẹp, lưu trữ hoặc xóa site với bước xác nhận an toàn' "$ROOT/modules/ui/menus/main.sh"
-grep -Fq 'Quản lý gói chức năng và xem hướng dẫn thao tác nhanh' "$ROOT/modules/ui/menus/main.sh"
+grep -Fq 'Quản lý gói, xem hướng dẫn và lấy prompt nâng cấp Platform 2.1' "$ROOT/modules/ui/menus/main.sh"
 grep -q '^ui_site_operation_dispatch()' "$ROOT/modules/ui/menus/site-operations-v2.sh"
 grep -q '^ui_site_operations_group()' "$ROOT/modules/ui/menus/site-operations-v2.sh"
 grep -Fq 'ui_site_operation_dispatch "$c"' "$ROOT/modules/ui/menus/site-operations-v2.sh"
@@ -130,4 +130,10 @@ grep -Fq 'ui_site_operation_dispatch "$c"' "$ROOT/modules/ui/menus/site-operatio
 ! grep -Fq '|| continue; cmd=' "$ROOT/modules/ui/menus/site-operations-v2.sh"
 ! grep -Fq '  LARAVEL DEPLOYMENT PLATFORM v2.1' "$ROOT/modules/ui/menus/main.sh"
 grep -Fq 'Repository & SSH → Update repository' "$ROOT/modules/ui/menus/main.sh"
-echo "[OK] Platform 2.1 Vietnamese submenu descriptions and safe navigation"
+# Read-only upgrade prompt must be reachable from menu 9 and must not execute commands.
+grep -q '^ui_upgrade_prompt_guide()' "$ROOT/modules/ui/menus/main.sh"
+grep -Fq '3) Prompt nâng cấp Platform 2.1 (chỉ đọc)' "$ROOT/modules/ui/menus/main.sh"
+grep -Fq '3) ui_upgrade_prompt_guide ;;' "$ROOT/modules/ui/menus/main.sh"
+grep -Fq 'Đọc INFORMATION.md và audit read-only branch main mới nhất' "$ROOT/modules/ui/menus/main.sh"
+grep -Fq 'không tự merge' "$ROOT/modules/ui/menus/main.sh"
+echo "[OK] Platform 2.1 Vietnamese submenu descriptions and upgrade prompt"
