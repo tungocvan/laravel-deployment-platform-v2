@@ -2,7 +2,7 @@
 
 > Tài liệu này là điểm bắt đầu ưu tiên cho AI mới, tài khoản ChatGPT/Codex mới, developer mới hoặc người vận hành mới tiếp nhận `laravel-deployment-platform-v2` trên VPS. Mục tiêu là giúp người tiếp nhận hiểu đúng repository, kiến trúc, runtime, quy tắc an toàn, workflow Git/Deploy/Site, cách test và cách tiếp tục phát triển mà không cần biết toàn bộ lịch sử hội thoại trước đây.
 
-**Cập nhật theo trạng thái repository ngày 2026-08-21.** Khi tài liệu này mâu thuẫn với source code mới hơn, ưu tiên source code và tests hiện tại.
+**Nền tảng tài liệu được lập ngày 2026-08-21; bổ sung handoff Platform 2.1 sau PR #26 vào 2026-10-15 (Checkpoint 61).** Khi tài liệu này mâu thuẫn với source code mới hơn, ưu tiên source code và tests hiện tại.
 
 ---
 
@@ -1053,3 +1053,76 @@ correctness
 ```
 
 Nếu cần chọn giữa “deploy báo thành công” và “deploy fail đúng vì HTTP 500/502”, luôn chọn fail đúng.
+---
+
+## 31. Platform 2.1 — Checkpoint 61 handoff (2026-10-15)
+
+### 31.1 Source of truth và checkpoint đã xác nhận
+
+- Repository: `tungocvan/laravel-deployment-platform-v2`; production checkout: `/opt/laravel-deployment-platform-v2`.
+- Production entrypoint: `platform-v2` (trỏ về `bin/platform` trong production checkout). Không dùng worktree test làm CLI production.
+- `main` sau merge PR #26: `babc3f9` (Merge pull request #26 — Platform 2.1 Vietnamese submenu descriptions / Upgrade Prompt), theo checkpoint người vận hành cung cấp. Đây là **mốc lịch sử**, không phải khẳng định `main` luôn ở SHA này.
+- PR #26 bao gồm Checkpoint 60 và 60.1: menu 9 nhóm, diễn giải tiếng Việt cho submenu, cảnh báo thao tác nguy hiểm, bỏ tiêu đề trùng lặp, prompt nâng cấp chỉ đọc.
+- Operator xác nhận Test + UI PASS trước merge; sau merge đã xác nhận `main` và `origin/main` cùng commit `babc3f9`. Không tự suy diễn tình trạng runtime/site nếu chưa chạy health check.
+- Các worktree test `/opt/platform-v2-checkpoint-60`, `/opt/platform-v2-hotfix-test`, `/opt/platform-v2-navigation-test` và `/opt/platform-v2-baseline-contracts` đã được người vận hành gỡ. Metadata các worktree `/tmp` prunable đã được `git worktree prune` dọn. Không giả định thư mục test còn tồn tại trong phiên làm việc sau.
+
+### 31.2 Menu tương tác Platform 2.1
+
+Implementation: `modules/ui/menus/main.sh`; loader: `modules/ui/commands/menu.sh`. Menu gọi lại các hàm/dispatcher module sẵn có, không được copy business logic sang UI.
+
+1. **Dashboard & Site Overview** — danh sách site, chi tiết, Docker/runtime status.
+2. **Sites Management** — tạo, nhân bản, bật/tắt site và maintenance.
+3. **Deploy & Runtime** — deploy chuẩn, update site, quản lý .env, reconcile runtime, Artisan.
+4. **Backup & Recovery** — backup, verify, restore theo safety gate.
+5. **Monitoring & Diagnostics** — Doctor, domain, production diagnostics, runtime status.
+6. **Infrastructure — SSL & Nginx** — chứng chỉ SSL, Nginx routing và kiểm tra xung đột.
+7. **Maintenance & Safety** — production cleanup, archive, purge, purge force (có cảnh báo).
+8. **Repository & SSH** — update/bootstrap/sync repository, kiểm tra Git/SSH identity.
+9. **Packages & Help & Upgrade Menu** — package, hướng dẫn thao tác, prompt nâng cấp.
+0. **Thoát**; trong submenu `0` là **Quay lại**.
+
+Trong menu **9 → 3**, `ui_upgrade_prompt_guide()` hiển thị prompt bàn giao **chỉ đọc**, không tự gọi Git, deploy hay lệnh mutation. Prompt hướng AI đọc `INFORMATION.md`, audit `main`, đề xuất sửa đổi, tạo branch/PR và chờ test + UI PASS. Không biến prompt thành một tác vụ nâng cấp tự động nếu chưa có yêu cầu/phê duyệt cụ thể.
+
+Các file UI liên quan gồm `modules/ui/menus/{main,backup,deploy,doctor,infrastructure,packages,site-operations-v2}.sh` và `modules/ui/tests/test-ui.sh`. Đọc source hiện tại để xác định đúng chức năng, không chỉ dựa vào mô tả menu.
+
+### 31.3 Quy trình hợp tác AI ↔ GitHub ↔ VPS
+
+1. **Audit chỉ đọc:** kiểm tra `main` hiện tại, `INFORMATION.md`, implementation, targeted tests, các PR đang mở và lịch sử liên quan. Nếu thiếu quyền truy cập, yêu cầu thông tin cụ thể thay vì suy đoán.
+2. **Thiết kế:** nêu nguyên nhân/vấn đề, phạm vi thay đổi, nguy cơ production, kế hoạch hồi quy; ưu tiên sửa tối thiểu đúng module.
+3. **Viết code:** dùng branch riêng trên GitHub, tạo **Draft PR**. AI có thể sửa trực tiếp qua GitHub connector khi được phép; không chỉnh trực tiếp production checkout.
+4. **Checkpoint test:** cung cấp lệnh `git fetch` và `git worktree add` ở đường dẫn test riêng; không đổi `main` để thử tính năng chưa merge.
+5. **Test gate:** Bash syntax, targeted contract/regression tests, `make test`, `make lint` khi phù hợp; với thay đổi UI cần **UI PASS thực tế** từ operator. Báo chính xác những test đã chạy và chưa chạy; không coi việc sửa code trên GitHub là test PASS.
+6. **Merge gate:** chỉ merge khi operator đồng ý rõ ràng sau Test + UI PASS; không force push, không auto merge.
+7. **Sau merge:** operator `git pull --ff-only origin main` tại production checkout sạch, chạy regression/health thích hợp, xác nhận `git log` và `git status`.
+8. **Cleanup:** `git worktree remove` worktree đã merge và sạch; `git worktree prune --dry-run --verbose` trước khi prune metadata cũ. Không `rm -rf` source production hoặc xóa branch remote tự động.
+9. **Cập nhật handoff:** ghi checkpoint, PR, các quyết định kỹ thuật và lệnh test đã xác nhận vào tài liệu, nhưng giữ lịch sử cũ và tránh thông tin nhạy cảm.
+
+Ví dụ checkpoint read-only, không làm thay đổi runtime:
+
+```bash
+cd /opt/laravel-deployment-platform-v2 || exit 1
+git status -sb
+git fetch origin <branch>
+git worktree add /opt/platform-v2-checkpoint-N -b test/platform-v2-checkpoint-N origin/<branch>
+cd /opt/platform-v2-checkpoint-N || exit 1
+find modules/ui -type f -name '*.sh' -print0 | xargs -0 -r -n1 bash -n
+bash modules/ui/tests/test-ui.sh
+make test
+make lint
+```
+
+Đây là mẫu; điều chỉnh bộ test theo phạm vi task, kiểm tra tên script tồn tại trước khi chạy và tránh dùng lại tên worktree/branch đã tồn tại.
+
+### 31.4 Production safety bất biến
+
+- Không tự sửa/xóa `.env`, `APP_KEY`, secrets, private SSH keys, runtime inventory, database, Docker volumes, compose overlays, remote Git hoặc Nginx production.
+- Không chạy deploy, migrate, restore, purge, Docker prune, thay đổi SSL hoặc restart service khi chưa được operator phê duyệt rõ ràng.
+- Với thao tác nguy hiểm phải giữ dry-run, typed confirmation, backup/verify, site identity và health gate.
+- Multi-site VPS: không dùng fallback Compose/project name mơ hồ làm ảnh hưởng site khác; không suy diễn Docker container healthy là Laravel HTTP healthy.
+- Không tự động đổi version `VERSION` chỉ vì UI ghi Platform 2.1; versioning là quyết định phát hành riêng.
+
+### 31.5 Prompt mở cuộc trò chuyện mới
+
+> Hãy đọc `INFORMATION.md` trong `tungocvan/laravel-deployment-platform-v2`, đặc biệt mục 31 (Platform 2.1 handoff). Đối chiếu `main` và tests mới nhất, kiểm tra PR đang mở. Tôi muốn [mô tả lỗi/tính năng]. Audit read-only trước; đề xuất kiến trúc, safety contract và test; sau đó viết code trên feature branch, tạo Draft PR và cung cấp checkpoint git pull/test. Không thay đổi production hoặc merge main trước khi tôi xác nhận Test + UI PASS.
+
+**Điểm bắt đầu cho task tiếp theo:** checkpoint PR #26 đã merge; Checkpoint 61 cập nhật handoff trên branch tài liệu riêng. Phải xác minh trạng thái PR Checkpoint 61 và `main` ở thời điểm tiếp nhận, không giả định đã merge.
