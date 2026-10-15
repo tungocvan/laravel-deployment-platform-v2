@@ -129,6 +129,10 @@ services:
       FEATURE_FLAG: ${FEATURE_FLAG:-off}
 EOF
 site_ops_runtime_config_files() { return 0; }
+# Regression: missing alternative Compose filenames must not fail the fallback pipeline.
+compose_keys="$(site_ops_env_compose_keys demo "$tmp/site")"
+grep -Fxq 'DB_HOST' <<<"$compose_keys"
+grep -Fxq 'FEATURE_FLAG' <<<"$compose_keys"
 ! site_ops_env_requires_reconcile demo "$tmp/site" 'PRINCIPAL'
 site_ops_env_requires_reconcile demo "$tmp/site" 'DB_HOST'
 site_ops_env_requires_reconcile demo "$tmp/site" 'FEATURE_FLAG'
