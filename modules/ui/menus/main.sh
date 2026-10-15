@@ -9,35 +9,35 @@ ui_quick_guide() {
   TÌNH HUỐNG THƯỜNG GẶP
   ---------------------
   • Tạo / xóa / bật tắt / bảo trì site
-      → Sites & Repository
+      → Sites Management / Maintenance & Safety
 
   • Code trên GitHub có thay đổi
-      → Deploy → Update Code from GitHub
+      → Deploy & Runtime → Update Code from GitHub
       → sau đó Full Deploy nếu thay đổi cần build/migrate/runtime refresh
 
   • Chỉ sửa hoặc thêm biến .env thông thường
-      → Deploy → Backend → Optimize / Reload .env
+      → Deploy & Runtime → Backend → Optimize / Reload .env
       → sau đó Health Check
       → KHÔNG cần Full Deploy nếu không đổi image/port/service secret
 
   • Website lỗi 500 / 502 hoặc nghi runtime có vấn đề
-      → Deploy → Health Check
+      → Deploy & Runtime → Health Check
       → Doctor & Domain Diagnostics nếu cần kiểm tra sâu hơn
 
   • Backup trước khi thao tác nguy hiểm / phục hồi dữ liệu
-      → Backup & Restore
+      → Backup & Recovery
 
   • SSL / Nginx / domain proxy có vấn đề
       → Infrastructure — SSL & Nginx
 
   • Đổi repository nhưng giữ nguyên source
-      → Sites & Repository → Update repository
+      → Repository & SSH → Update repository
 
   • Tạo repository mới hoặc đồng bộ hai repository
-      → Sites & Repository → Bootstrap / Sync repository
+      → Repository & SSH → Bootstrap / Sync repository
 
   • Kiểm tra quyền GitHub / tạo SSH key riêng cho repository
-      → Sites & Repository → Kiểm tra quyền repository / SSH key
+      → Repository & SSH → Kiểm tra quyền repository / SSH key
       → Platform test READ + WRITE + DELETE bằng ref tạm, không chạm main
       → Nếu thiếu quyền, có thể tạo key theo owner/repo và in PUBLIC KEY
 
@@ -50,7 +50,7 @@ ui_quick_guide() {
   5. Backup trước Archive/Purge/Restore hoặc thay đổi dữ liệu quan trọng.
   6. Không bao giờ chia sẻ private SSH key; menu chỉ hiển thị public key .pub.
 
-  0) Back
+  0) Quay lại
 
 EOF
     local c
@@ -69,8 +69,6 @@ ui_main() {
     ui_header
     cat <<'EOF'
 
-  LARAVEL DEPLOYMENT PLATFORM v2.1
-  --------------------------------
 
   1) Dashboard & Site Overview
      Xem danh sách, thông tin và trạng thái các website đang quản lý.
