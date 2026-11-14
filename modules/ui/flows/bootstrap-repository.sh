@@ -19,51 +19,25 @@ ui_flow_bootstrap_repository() {
   ui_run site show "$site"
   echo
 
-  new_repo="$(ui_prompt "Địa chỉ Git repository ĐÍCH")"
+  new_repo="$(ui_prompt "Repository mới (owner/name hoặc git@github.com:owner/name.git)")"
   [[ -n "$new_repo" ]] || { echo "[ERROR] Repository đích bắt buộc."; ui_pause; return; }
 
+  echo
+  echo "[INFO] Bootstrap chỉ tạo và chuẩn bị repository mới; KHÔNG đổi origin của site."
+  echo "[INFO] Sau khi bootstrap PASS, quay lại chức năng 21 để chuyển origin."
   ui_section "BOOTSTRAP VERIFY / DRY-RUN"
-  if ! ui_run_sudo git bootstrap-remote "$site" "--to=$new_repo" --dry-run; then
-    echo
-    echo "[WARN] Dry-run chế độ target trống không đạt."
-    echo "Nếu nguyên nhân là target/main đã có dữ liệu, có thể chuyển sang chế độ REPLACE MAIN."
-    echo "Các branch/tag khác sẽ được giữ nguyên."
-    echo
-    if ! ui_yesno "Cho phép kiểm tra lại với chế độ REPLACE target/main?" "N"; then
-      echo "[INFO] Đã hủy; không có thay đổi nào được thực hiện."
-      ui_pause
-      return
-    fi
-
-    replace_existing=1
-    ui_section "REPLACE TARGET MAIN — DRY-RUN"
-    ui_run_sudo git bootstrap-remote "$site" "--to=$new_repo" --replace-existing --dry-run || {
-      echo
-      echo "[ERROR] Target không đủ điều kiện replace hoặc source/main không hợp lệ. Site chưa bị thay đổi."
-      ui_pause
-      return
-    }
-  fi
+  ui_run_sudo git bootstrap-remote "$site" "--to=$new_repo" --dry-run || {
+    echo "[ERROR] Bootstrap dry-run thất bại; site chưa bị thay đổi."
+    ui_pause
+    return
+  }
 
   echo
-  if (( replace_existing == 1 )); then
-    echo "CẢNH BÁO NGHIÊM TRỌNG: target/main hiện tại sẽ bị THAY THẾ bằng source/main."
-    echo "Platform sẽ backup target/main tạm, replace bằng force-with-lease, verify SHA/tree,"
-    echo "sau đó mới đổi origin site. Branch/tag khác của target vẫn được giữ nguyên."
-    echo
-    read -r -p "Nhập chính xác URL repo đích '$new_repo' để REPLACE main: " typed
-    [[ "$typed" == "$new_repo" ]] || {
-      echo "[INFO] Xác nhận không khớp; đã hủy."
-      ui_pause
-      return
-    }
-
-    ui_run_sudo git bootstrap-remote "$site" "--to=$new_repo" --replace-existing --yes
-  else
-    echo "CẢNH BÁO: Bước tiếp theo sẽ GHI source/main vào repository đích đang trống."
-    echo "Origin của site chỉ thay đổi sau khi push và verify thành công."
-    ui_confirm_execute "BOOTSTRAP NEW REPOSITORY: $site → $new_repo" &&
-      ui_run_sudo git bootstrap-remote "$site" "--to=$new_repo" --yes
+  echo "CẢNH BÁO: Bước tiếp theo có thể TẠO repository GitHub mới và PUSH source/main."
+  echo "Không thay đổi origin, Inventory, HEAD, worktree, deploy, database hay container."
+  if ui_confirm_execute "BOOTSTRAP NEW REPOSITORY: $site → $new_repo"; then
+    ui_run_sudo git bootstrap-remote "$site" "--to=$new_repo" --yes
+    echo "[INFO] Nếu bootstrap thành công, dùng chức năng 21 để đổi repository của website."
   fi
 
   ui_pause
