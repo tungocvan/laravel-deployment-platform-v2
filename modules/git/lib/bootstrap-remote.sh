@@ -12,16 +12,25 @@ target_repo=""
 dry_run=0
 yes=0
 replace_existing=0
+prepare_only=0
 for arg in "$@"; do
   case "$arg" in
     --to=*) target_repo="${arg#*=}" ;;
     --replace-existing) replace_existing=1 ;;
+    --prepare-only) prepare_only=1 ;;
     --dry-run) dry_run=1 ;;
     --yes) yes=1 ;;
     *) platform_die "$PLATFORM_EXIT_USAGE" "GIT.INVALID_OPTION" "Option không hợp lệ trong bootstrap mode: $arg" ;;
   esac
 done
 [[ -n "$target_repo" ]] || platform_die "$PLATFORM_EXIT_USAGE" "GIT.TARGET_REMOTE_REQUIRED" "Repository mới không được rỗng."
+
+if (( prepare_only == 1 )); then
+  (( replace_existing == 0 )) || platform_die "$PLATFORM_EXIT_USAGE" "GIT.PREPARE_REPLACE_FORBIDDEN" "Prepare-only không cho phép replace."
+  source "$PLATFORM_HOME/modules/git/lib/prepare-repository.sh"
+  platform_prepare_repository_only "$site" "$target_repo" "$dry_run" "$yes"
+  exit 0
+fi
 
 path="$(inventory_get_field "$site" path 2>/dev/null || true)"
 [[ -n "$path" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.SITE_NOT_FOUND" "Site không tồn tại trong Inventory: $site"
