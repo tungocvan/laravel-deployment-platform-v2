@@ -3,7 +3,7 @@
 # Sourced by bootstrap-remote.sh after platform bootstrap and option parsing.
 platform_prepare_repository_only() {
   local site="$1" target="$2" dry="$3" confirmed="$4"
-  local slug owner name target_url path branch current_repo site_head source_head target_sha verify_sha
+  local slug owner name target_url path branch current_repo site_head source_head verify_sha
   if [[ "$target" =~ ^git@github\.com:([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)(\.git)?$ ]]; then
     owner="${BASH_REMATCH[1]}"
     name="${BASH_REMATCH[2]%.git}"
@@ -13,6 +13,7 @@ platform_prepare_repository_only() {
   else
     platform_die "$PLATFORM_EXIT_USAGE" "GIT.INVALID_TARGET" "Chỉ hỗ trợ owner/name hoặc git@github.com:owner/name.git."
   fi
+  [[ "$owner" == "tungocvan" ]] || platform_die "$PLATFORM_EXIT_USAGE" "GIT.OWNER_UNSUPPORTED" "Prepare-only hiện chỉ hỗ trợ owner tungocvan với SSH identity được cấu hình."
   slug="$owner/$name"
   target_url="git@github.com:$slug.git"
   path="$(inventory_get_field "$site" path 2>/dev/null || true)"
@@ -22,6 +23,7 @@ platform_prepare_repository_only() {
   [[ "$branch" == main ]] || platform_die "$PLATFORM_EXIT_CONFLICT" "GIT.MAIN_BRANCH_REQUIRED" "Site phải ở branch main."
   current_repo="$(platform_git_remote "$path")"
   [[ -n "$current_repo" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.ORIGIN_MISSING" "Thiếu origin."
+  [[ "$current_repo" != "$target_url" ]] || platform_die "$PLATFORM_EXIT_CONFLICT" "GIT.TARGET_EQUALS_CURRENT" "Không được bootstrap vào repository đang dùng."
   site_head="$(git -C "$path" rev-parse HEAD)"
   source_head="$(git ls-remote --heads "$current_repo" refs/heads/main | awk 'NR==1 {print $1}')"
   [[ -n "$source_head" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.CURRENT_MAIN_NOT_FOUND" "Không đọc được source/main."
@@ -37,7 +39,7 @@ platform_prepare_repository_only() {
   command -v gh >/dev/null || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.GH_REQUIRED" "Cần GitHub CLI gh trên host."
   gh auth status >/dev/null 2>&1 || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.GH_AUTH_REQUIRED" "GitHub CLI chưa được xác thực."
   local api_status
-  api_status="$(gh api -i "repos/$slug" 2>/dev/null | head -n 1 || true)"
+  api_status="$(gh api -i "repos/$slug" 2>/dev/null | grep -m 1 "^HTTP/" || true)"
   if [[ "$api_status" == *" 200 "* ]]; then
     platform_die "$PLATFORM_EXIT_CONFLICT" "GIT.TARGET_ALREADY_EXISTS" "Repository đã tồn tại; không ghi đè."
   fi
