@@ -27,7 +27,7 @@ done
 # Keep the canonical URL in origin/Inventory; select SSH identity for transport only.
 target_identity="${PLATFORM_TUNGOCVAN_GITHUB_IDENTITY_FILE:-/root/.ssh/github_tungocvan_ed25519}"
 target_ssh=""
-if [[ "$target_repo" =~ ^git@github\\.com:tungocvan/.+\\.git$ && -r "$target_identity" ]]; then
+if [[ "$target_repo" =~ ^git@github\.com:tungocvan/.+\.git$ && -r "$target_identity" ]]; then
   target_ssh="ssh -i $target_identity -o IdentitiesOnly=yes -o BatchMode=yes"
 fi
 target_git() {
