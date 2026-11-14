@@ -110,11 +110,11 @@ EOF
   fi
 fi
 
-target_branch_head="$(git ls-remote --heads "$target_repo" "refs/heads/$branch" | awk 'NR==1 {print $1}')"
+target_branch_head="$(target_git ls-remote --heads "$target_repo" "refs/heads/$branch" | awk 'NR==1 {print $1}')"
 [[ -n "$target_branch_head" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.TARGET_BRANCH_NOT_FOUND" "Target repository không có branch $branch hoặc không thể truy cập: $target_repo"
 
 temp_ref="refs/platform/migrate-remote/$branch"
-git -C "$path" fetch --no-tags "$target_repo" "refs/heads/$branch:$temp_ref" >/dev/null
+target_git -C "$path" fetch --no-tags "$target_repo" "refs/heads/$branch:$temp_ref" >/dev/null
 if (( require_compatible_main == 0 )); then
   trap 'git -C "$path" update-ref -d "$temp_ref" >/dev/null 2>&1 || true' EXIT
 fi
