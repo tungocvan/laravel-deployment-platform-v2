@@ -24,6 +24,21 @@ for arg in "$@"; do
 done
 [[ -n "$target_repo" ]] || platform_die "$PLATFORM_EXIT_USAGE" "GIT.TARGET_REMOTE_REQUIRED" "Target repository không được rỗng."
 
+# Keep the canonical URL in origin/Inventory; select SSH identity for transport only.
+target_identity="${PLATFORM_TUNGOCVAN_GITHUB_IDENTITY_FILE:-/root/.ssh/github_tungocvan_ed25519}"
+target_ssh=""
+if [[ "$target_repo" =~ ^git@github\\.com:tungocvan/.+\\.git$ && -r "$target_identity" ]]; then
+  target_ssh="ssh -i $target_identity -o IdentitiesOnly=yes -o BatchMode=yes"
+fi
+target_git() {
+  if [[ -n "$target_ssh" ]]; then
+    GIT_SSH_COMMAND="$target_ssh" git "$@"
+  else
+    git "$@"
+  fi
+}
+
+
 path="$(inventory_get_field "$site" path 2>/dev/null || true)"
 [[ -n "$path" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.SITE_NOT_FOUND" "Site không tồn tại trong Inventory: $site"
 platform_git_verify "$path"
@@ -67,14 +82,14 @@ if (( require_compatible_main == 1 )); then
   [[ -n "$old_main_head" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.CURRENT_MAIN_NOT_FOUND" \
     "Không đọc được branch main của kho hiện tại: $current_repo"
 
-  new_main_head="$(git ls-remote --heads "$target_repo" refs/heads/main | awk 'NR==1 {print $1}')"
+  new_main_head="$(target_git ls-remote --heads "$target_repo" refs/heads/main | awk 'NR==1 {print $1}')"
   [[ -n "$new_main_head" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.TARGET_MAIN_NOT_FOUND" \
     "Không đọc được branch main của kho mới: $target_repo"
 
   old_main_ref="refs/platform/repository-check/old-main"
   new_main_ref="refs/platform/repository-check/new-main"
   git -C "$path" fetch --no-tags "$current_repo" "refs/heads/main:$old_main_ref" >/dev/null
-  git -C "$path" fetch --no-tags "$target_repo" "refs/heads/main:$new_main_ref" >/dev/null
+  target_git -C "$path" fetch --no-tags "$target_repo" "refs/heads/main:$new_main_ref" >/dev/null
   trap 'git -C "$path" update-ref -d "$old_main_ref" >/dev/null 2>&1 || true; git -C "$path" update-ref -d "$new_main_ref" >/dev/null 2>&1 || true; git -C "$path" update-ref -d "refs/platform/migrate-remote/$branch" >/dev/null 2>&1 || true' EXIT
 
   if ! git -C "$path" merge-base --is-ancestor "$old_main_ref" "$new_main_ref" >/dev/null 2>&1; then
@@ -159,7 +174,7 @@ rollback_remote() {
 }
 
 git -C "$path" remote set-url origin "$target_repo"
-if ! git -C "$path" fetch --prune origin; then
+if ! target_git -C "$path" fetch --prune origin; then
   rollback_remote
   platform_audit_try "git" "migrate-remote" "$site" "failed" "GIT.TARGET_FETCH_FAILED" "" "not-attempted"
   platform_die "$PLATFORM_EXIT_OPERATION" "GIT.TARGET_FETCH_FAILED" "Fetch target thất bại; origin đã rollback về repository cũ."
