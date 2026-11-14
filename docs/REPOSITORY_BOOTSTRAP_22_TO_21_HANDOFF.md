@@ -29,5 +29,5 @@ Nếu focused test PASS, chạy regression theo bộ kiểm thử Platform tươ
 ## Handoff
 
 - Branch: `feat/repository-bootstrap-then-migrate-20261114`
-- Chưa chạy tests thực tế, chưa xác nhận UI PASS, chưa tạo PR, chưa merge hoặc deploy.
+- Đã chạy `bash modules/git/tests/test-git.sh` và `bash modules/ui/tests/test-ui.sh` trên host Platform: cả hai exit 0. Operator xác nhận UI menu 22 PASS. Menu 22 đã tạo PRIVATE `tungocvan/laravel-inafo`, SHA `75da1f1d263d60ad29fc5a10a8ab0457f63b80a7`. Menu 21 dry-run và thực thi exit 0; site origin và Inventory đã chuyển sang repository mới, site HEAD giữ nguyên `4ce6c532536fe157a1f148780aab1bd80df1ea54` (behind 11). Không deploy, migrate database hay restart Docker. PR/merge Platform chưa thực hiện tại thời điểm cập nhật handoff.
 - Rủi ro cần kiểm tra: `gh auth` dưới tài khoản chạy Platform, quyền tạo repository private, branch protection, SSH identity, status của GitHub API khi repo chưa tồn tại.
