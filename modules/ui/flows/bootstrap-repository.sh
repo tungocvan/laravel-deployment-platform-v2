@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 
 # Overrides the base Site menu bootstrap flow after modules/ui/menus/sites.sh is loaded.
-# This keeps the destructive replace confirmation isolated from the normal site menu.
+# Menu 22 creates a new private repository; menu 21 separately migrates origin.
 ui_flow_bootstrap_repository() {
-  local site new_repo replace_existing=0 typed
-  site="$(ui_select_site "Chọn site cần KHỞI TẠO / THAY KHO ĐÍCH")" || return 0
+  local site new_repo
+  site="$(ui_select_site "Chọn site cần TẠO REPOSITORY MỚI")" || return 0
 
-  ui_section "KHỞI TẠO / THAY MAIN KHO ĐÍCH TỪ KHO CŨ"
+  ui_section "TẠO REPOSITORY GITHUB MỚI — PREPARE ONLY"
   echo "Quy trình an toàn:"
-  echo "  - Đọc source chuẩn trực tiếp từ kho cũ/main"
-  echo "  - Kho đích trống: tạo main như hiện tại"
-  echo "  - Kho đích đã có main: chỉ replace khi người dùng xác nhận rõ ràng"
-  echo "  - Replace tạo backup ref tạm và dùng force-with-lease đúng SHA đã kiểm tra"
-  echo "  - Verify SHA + tree 100% trước khi đổi origin site"
-  echo "  - Branch/tag khác của kho đích KHÔNG bị xóa"
-  echo "  - HEAD/worktree/deploy/database/container của site được giữ nguyên"
+  echo "  - Chỉ hỗ trợ repository mới thuộc owner tungocvan"
+  echo "  - Kiểm tra source/main và lịch sử Git của website"
+  echo "  - Tạo repository GitHub PRIVATE mới, từ chối nếu đã tồn tại"
+  echo "  - Push source/main -> repository mới/main, không force-push"
+  echo "  - Verify SHA của main sau khi push"
+  echo "  - KHÔNG đổi origin hay Inventory; chức năng 21 xử lý riêng"
+  echo "  - Không deploy, không thay đổi database/container"
   echo
   ui_run site show "$site"
   echo
