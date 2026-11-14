@@ -26,7 +26,7 @@ ui_flow_bootstrap_repository() {
   echo "[INFO] Bootstrap chỉ tạo và chuẩn bị repository mới; KHÔNG đổi origin của site."
   echo "[INFO] Sau khi bootstrap PASS, quay lại chức năng 21 để chuyển origin."
   ui_section "BOOTSTRAP VERIFY / DRY-RUN"
-  ui_run_sudo git bootstrap-remote "$site" "--to=$new_repo" --dry-run || {
+  ui_run_sudo git bootstrap-remote "$site" "--to=$new_repo" --prepare-only --dry-run || {
     echo "[ERROR] Bootstrap dry-run thất bại; site chưa bị thay đổi."
     ui_pause
     return
@@ -36,7 +36,7 @@ ui_flow_bootstrap_repository() {
   echo "CẢNH BÁO: Bước tiếp theo có thể TẠO repository GitHub mới và PUSH source/main."
   echo "Không thay đổi origin, Inventory, HEAD, worktree, deploy, database hay container."
   if ui_confirm_execute "BOOTSTRAP NEW REPOSITORY: $site → $new_repo"; then
-    ui_run_sudo git bootstrap-remote "$site" "--to=$new_repo" --yes
+    ui_run_sudo git bootstrap-remote "$site" "--to=$new_repo" --prepare-only --yes
     echo "[INFO] Nếu bootstrap thành công, dùng chức năng 21 để đổi repository của website."
   fi
 
