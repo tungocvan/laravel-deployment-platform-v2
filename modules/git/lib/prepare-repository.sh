@@ -27,7 +27,7 @@ platform_prepare_repository_only() {
   [[ -n "$source_head" ]] || platform_die "$PLATFORM_EXIT_VALIDATION" "GIT.CURRENT_MAIN_NOT_FOUND" "Không đọc được source/main."
   # The remote-tracking ref is fetched only for validation, and cleaned up on exit.
   local source_ref="refs/platform/repository-bootstrap/prepare-source-main"
-  trap 'git -C "$path" update-ref -d "$source_ref" >/dev/null 2>&1 || true' RETURN
+  trap 'git -C "$path" update-ref -d "$source_ref" >/dev/null 2>&1 || true' EXIT
   git -C "$path" fetch --no-tags "$current_repo" "refs/heads/main:$source_ref" >/dev/null
   git -C "$path" merge-base --is-ancestor "$site_head" "$source_ref" || \
     platform_die "$PLATFORM_EXIT_CONFLICT" "GIT.SITE_HEAD_NOT_IN_SOURCE_MAIN" "Site HEAD không thuộc source/main."
