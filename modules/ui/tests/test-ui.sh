@@ -45,6 +45,8 @@ grep -q -- '--prepare-only --dry-run' "$ROOT/modules/ui/flows/bootstrap-reposito
 grep -q -- '--prepare-only --yes' "$ROOT/modules/ui/flows/bootstrap-repository.sh"
 grep -q 'KHÔNG đổi origin' "$ROOT/modules/ui/flows/bootstrap-repository.sh"
 grep -q 'chức năng 21' "$ROOT/modules/ui/flows/bootstrap-repository.sh"
+grep -q 'TẠO REPOSITORY GITHUB MỚI — PREPARE ONLY' "$ROOT/modules/ui/flows/bootstrap-repository.sh"
+! grep -q 'Kho đích đã có main: chỉ replace' "$ROOT/modules/ui/flows/bootstrap-repository.sh"
 ! grep -q -- '--replace-existing' "$ROOT/modules/ui/flows/bootstrap-repository.sh"
 ! grep -q 'force-with-lease' "$ROOT/modules/ui/flows/bootstrap-repository.sh"
 
