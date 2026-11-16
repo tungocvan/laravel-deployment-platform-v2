@@ -46,8 +46,13 @@ if [[ -n "$status_blocking" ]]; then
 fi
 
 old_head="$(git -C "$path" rev-parse HEAD)"
-echo "[GIT 01/03] Fetch origin"
-git -C "$path" fetch --prune origin
+echo "[GIT 01/03] Resolve SSH identity + fetch origin"
+resolved_remote="$(platform_git_resolve_read_url "$remote")" || \
+  die "Không thể đọc repository qua SSH mặc định hoặc SSH alias đã cấu hình: $remote"
+if [[ "$resolved_remote" != "$remote" ]]; then
+  echo "[INFO] Sử dụng SSH alias đã xác thực cho Git transport (origin không thay đổi)."
+fi
+platform_git_transport "$remote" "$resolved_remote" -C "$path" fetch --prune origin
 
 upstream="origin/$branch"
 git -C "$path" rev-parse --verify "$upstream" >/dev/null 2>&1 \
