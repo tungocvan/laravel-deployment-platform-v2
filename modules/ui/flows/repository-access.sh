@@ -97,23 +97,14 @@ ui_repo_access_show_result() {
 }
 
 ui_repo_access_existing_owner_alias() {
-  local owner="$1" name="$2" candidate effective_host alias_repo
+  local owner="$1" name="$2" canonical alias_repo
   UI_REPO_ACCESS_EXISTING_ALIAS=""
   UI_REPO_ACCESS_EXISTING_REPO=""
-
-  # First try the canonical owner alias used by Platform installations,
-  # e.g. github-tungocvan. Then try a repository-specific alias if it exists.
-  for candidate in "github-$owner" "github-$owner-$name"; do
-    effective_host="$(ssh -G "$candidate" 2>/dev/null | awk '$1=="hostname" {print $2; exit}')"
-    [[ "$effective_host" == "github.com" ]] || continue
-    alias_repo="git@${candidate}:${owner}/${name}.git"
-    if git ls-remote "$alias_repo" >/dev/null 2>&1; then
-      UI_REPO_ACCESS_EXISTING_ALIAS="$candidate"
-      UI_REPO_ACCESS_EXISTING_REPO="$alias_repo"
-      return 0
-    fi
-  done
-  return 1
+  canonical="git@github.com:${owner}/${name}.git"
+  alias_repo="$(platform_git_find_accessible_alias "$canonical")" || return 1
+  UI_REPO_ACCESS_EXISTING_REPO="$alias_repo"
+  UI_REPO_ACCESS_EXISTING_ALIAS="${alias_repo#git@}"
+  UI_REPO_ACCESS_EXISTING_ALIAS="${UI_REPO_ACCESS_EXISTING_ALIAS%%:*}"
 }
 
 ui_repo_access_generate_key() {
