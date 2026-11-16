@@ -179,7 +179,7 @@ platform_git_clone() {
 # Inventory, SSH configuration or private keys. Read probes never write refs.
 platform_git_find_accessible_alias() {
   local repo="${1:-}" owner name candidate effective_host alias_repo
-  [[ "$repo" =~ ^git@github\\.com:([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)\\.git$ ]] || return 1
+  [[ "$repo" =~ ^git@github\.com:([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)\.git$ ]] || return 1
   owner="${BASH_REMATCH[1]}"
   name="${BASH_REMATCH[2]}"
   for candidate in "github-$owner" "github-$owner-$name"; do
@@ -187,7 +187,7 @@ platform_git_find_accessible_alias() {
     [[ "$effective_host" == "github.com" ]] || continue
     alias_repo="git@${candidate}:${owner}/${name}.git"
     if GIT_TERMINAL_PROMPT=0 git ls-remote "$alias_repo" HEAD >/dev/null 2>&1; then
-      printf '%s\\n' "$alias_repo"
+      printf '%s\n' "$alias_repo"
       return 0
     fi
   done
@@ -198,16 +198,16 @@ platform_git_find_accessible_alias() {
 platform_git_resolve_read_url() {
   local repo="${1:-}" alias_repo
   [[ -n "$repo" ]] || return 1
-  if [[ ! "$repo" =~ ^git@github\\.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\.git$ ]]; then
-    printf '%s\\n' "$repo"
+  if [[ ! "$repo" =~ ^git@github\.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\.git$ ]]; then
+    printf '%s\n' "$repo"
     return 0
   fi
   if GIT_TERMINAL_PROMPT=0 git ls-remote "$repo" HEAD >/dev/null 2>&1; then
-    printf '%s\\n' "$repo"
+    printf '%s\n' "$repo"
     return 0
   fi
   alias_repo="$(platform_git_find_accessible_alias "$repo")" || return 1
-  printf '%s\\n' "$alias_repo"
+  printf '%s\n' "$alias_repo"
 }
 
 # Rewrite transport for one Git invocation only; never mutate remote or config.
