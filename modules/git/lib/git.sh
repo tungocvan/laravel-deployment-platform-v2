@@ -173,3 +173,50 @@ platform_git_clone() {
   platform_git_trust "$destination"
   platform_git_verify "$destination"
 }
+
+
+# Resolve a GitHub repository's existing SSH alias without changing origin,
+# Inventory, SSH configuration or private keys. Read probes never write refs.
+platform_git_find_accessible_alias() {
+  local repo="${1:-}" owner name candidate effective_host alias_repo
+  [[ "$repo" =~ ^git@github\\.com:([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)\\.git$ ]] || return 1
+  owner="${BASH_REMATCH[1]}"
+  name="${BASH_REMATCH[2]}"
+  for candidate in "github-$owner" "github-$owner-$name"; do
+    effective_host="$(ssh -G "$candidate" 2>/dev/null | awk '$1=="hostname" {print $2; exit}')" || continue
+    [[ "$effective_host" == "github.com" ]] || continue
+    alias_repo="git@${candidate}:${owner}/${name}.git"
+    if GIT_TERMINAL_PROMPT=0 git ls-remote "$alias_repo" HEAD >/dev/null 2>&1; then
+      printf '%s\\n' "$alias_repo"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Return canonical URL when readable, otherwise a verified existing alias.
+platform_git_resolve_read_url() {
+  local repo="${1:-}" alias_repo
+  [[ -n "$repo" ]] || return 1
+  if [[ ! "$repo" =~ ^git@github\\.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\.git$ ]]; then
+    printf '%s\\n' "$repo"
+    return 0
+  fi
+  if GIT_TERMINAL_PROMPT=0 git ls-remote "$repo" HEAD >/dev/null 2>&1; then
+    printf '%s\\n' "$repo"
+    return 0
+  fi
+  alias_repo="$(platform_git_find_accessible_alias "$repo")" || return 1
+  printf '%s\\n' "$alias_repo"
+}
+
+# Rewrite transport for one Git invocation only; never mutate remote or config.
+platform_git_transport() {
+  local canonical="${1:-}" resolved="${2:-}"
+  shift 2
+  if [[ "$canonical" == "$resolved" ]]; then
+    git "$@"
+  else
+    git -c "url.${resolved}.insteadOf=${canonical}" "$@"
+  fi
+}
